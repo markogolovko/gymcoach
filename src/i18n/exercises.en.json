@@ -25,15 +25,15 @@
   },
   "pseudo_planche_push_up": {
     "name": "Pseudo-planche push-up",
-    "cue": "Brace your torso and move with steady control."
+    "cue": "Lean your shoulders ahead of your hands, then lower and press up while keeping your elbows close."
   },
   "pike_push_up": {
     "name": "Pike push-up",
-    "cue": "Brace your torso and move with steady control."
+    "cue": "Keep your hips high, lower the top of your head between your hands, then press back up."
   },
   "elevated_pike_push_up": {
     "name": "Elevated pike push-up",
-    "cue": "Brace your torso and move with steady control."
+    "cue": "With feet raised and hips high, lower your head between your hands, then press back up."
   },
   "wall_handstand_push_up": {
     "name": "Wall handstand push-up",
@@ -81,15 +81,15 @@
   },
   "negative_pull_up": {
     "name": "Negative pull-up",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Start at the top with your chin over the bar, then lower yourself slowly to straight arms."
   },
   "archer_pull_up": {
     "name": "Archer pull-up",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Pull toward one hand while keeping the other arm mostly straight; alternate sides."
   },
   "typewriter_pull_up": {
     "name": "Typewriter pull-up",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Pull up, shift your chest from one hand toward the other, then lower with control."
   },
   "muscle_up": {
     "name": "Muscle-up",
@@ -97,7 +97,7 @@
   },
   "sternum_pull_up": {
     "name": "Sternum pull-up",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Lean back as you pull and bring your upper chest toward the bar."
   },
   "inverted_row": {
     "name": "Inverted row",
@@ -117,27 +117,27 @@
   },
   "scapular_pull_up": {
     "name": "Scapular pull-up",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Hang with straight arms; draw your shoulders down away from your ears, then relax back to a hang."
   },
   "active_hang": {
     "name": "Active hang",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Hang with straight arms and gently pull your shoulders down away from your ears."
   },
   "dead_hang": {
     "name": "Dead hang",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Hang from the bar with straight arms and let your body relax; keep your legs still."
   },
   "tuck_front_lever": {
     "name": "Tuck front lever",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "From a hang, pull your shoulders down and tuck your knees as you hold your body near horizontal."
   },
   "front_lever_raise": {
     "name": "Front lever raise",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Keep your arms straight and lift your body toward horizontal; lower slowly without swinging."
   },
   "skin_the_cat": {
     "name": "Skin the cat",
-    "cue": "Keep your shoulders down and avoid swinging."
+    "cue": "Tuck your knees and rotate your legs through the rings or bar only within a comfortable shoulder range."
   },
   "bodyweight_squat": {
     "name": "Bodyweight squat",
@@ -149,7 +149,7 @@
   },
   "reverse_lunge": {
     "name": "Reverse lunge",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Step one foot back, lower until both knees bend, then push through the front foot to stand."
   },
   "forward_lunge": {
     "name": "Forward lunge",
@@ -157,27 +157,27 @@
   },
   "cossack_squat": {
     "name": "Cossack squat",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Shift your hips over one bent leg while keeping the other leg straight; switch sides."
   },
   "shrimp_squat": {
     "name": "Shrimp squat",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Balance on one leg, bend the knee, and reach the other foot behind you toward the floor."
   },
   "assisted_pistol_squat": {
     "name": "Assisted pistol squat",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Hold support, reach one leg forward, and lower on the other leg as far as you can control."
   },
   "pistol_squat": {
     "name": "Pistol squat",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Reach one leg forward and squat on the other; keep the standing foot flat and stand with control."
   },
   "sissy_squat": {
     "name": "Sissy squat",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Keeping your hips extended, bend your knees and lean back as one line; use support if needed."
   },
   "nordic_curl": {
     "name": "Nordic curl",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "With ankles secured, keep your body straight and slowly lean forward, catching yourself with your hands."
   },
   "glute_bridge": {
     "name": "Glute bridge",
@@ -197,19 +197,19 @@
   },
   "single_leg_calf_raise": {
     "name": "Single-leg calf raise",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Rise onto the ball of one foot, pause at the top, then lower your heel slowly."
   },
   "hamstring_walkout": {
     "name": "Hamstring walkout",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "From a glute bridge, take small heel steps away from your hips, then walk them back."
   },
   "step_up": {
     "name": "Step-up",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Place one whole foot on the step, stand up through that leg, then lower slowly."
   },
   "wall_sit": {
     "name": "Wall sit",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Slide down the wall until your knees are bent, then hold with both feet flat."
   },
   "squat_jump": {
     "name": "Squat jump",
@@ -217,7 +217,7 @@
   },
   "reverse_nordic": {
     "name": "Reverse Nordic curl",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Kneel tall, keep hips extended, and lean your whole body back before returning upright."
   },
   "plank": {
     "name": "Plank",
@@ -229,11 +229,11 @@
   },
   "hollow_hold": {
     "name": "Hollow-body hold",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Lie on your back, lift shoulders and legs, and press your lower back into the floor."
   },
   "arch_hold": {
     "name": "Arch hold",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Lie face down and lift your chest and thighs slightly while keeping your neck relaxed."
   },
   "dead_bug": {
     "name": "Dead bug",
@@ -241,7 +241,7 @@
   },
   "hanging_knee_raise": {
     "name": "Hanging knee raise",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Hang still, bend your knees, and lift them toward your hips without swinging."
   },
   "hanging_leg_raise": {
     "name": "Hanging leg raise",
@@ -249,23 +249,23 @@
   },
   "toes_to_bar": {
     "name": "Toes-to-bar",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Hang from the bar and lift both feet toward it; use only a small, controlled swing."
   },
   "windshield_wiper": {
     "name": "Hanging windshield wiper",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Hang with legs raised and rotate them slowly from side to side without twisting your grip."
   },
   "dragon_flag": {
     "name": "Dragon flag",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Hold a bench behind your head and lower your straight body as one piece; stop before your back arches."
   },
   "l_sit": {
     "name": "L-sit",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Press down through your hands and hold your legs straight out in front of you."
   },
   "v_sit": {
     "name": "V-sit",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Balance on your hips and lift your straight legs and chest toward each other."
   },
   "mountain_climber": {
     "name": "Mountain climber",
@@ -293,7 +293,7 @@
   },
   "scapular_push_up": {
     "name": "Scapular push-up",
-    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+    "cue": "Keep elbows straight; let your chest sink slightly, then push the floor away by spreading your shoulder blades."
   },
   "ring_support_hold": {
     "name": "Ring support hold",
@@ -305,7 +305,7 @@
   },
   "shoulder_dislocate": {
     "name": "Band shoulder pass-through",
-    "cue": "Move gently through a comfortable range without forcing the stretch."
+    "cue": "With a wide grip on the band, raise it overhead and behind you, then return; widen your grip if needed."
   },
   "worlds_greatest_stretch": {
     "name": "World’s greatest stretch",
@@ -413,11 +413,11 @@
   },
   "dumbbell_rdl": {
     "name": "Dumbbell Romanian deadlift",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Push your hips back with a slight knee bend, lower the dumbbells along your legs, then stand tall."
   },
   "dumbbell_hip_thrust": {
     "name": "Dumbbell hip thrust",
-    "cue": "Keep your whole foot grounded and control the lowering phase."
+    "cue": "Rest your upper back on a bench, drive through your feet, and lift your hips until your torso is level."
   },
   "dumbbell_calf_raise": {
     "name": "Dumbbell calf raise",
@@ -485,6 +485,6 @@
   },
   "dumbbell_goblet_squat": {
     "name": "Dumbbell goblet squat",
-    "cue": "Hold one dumbbell close to your chest and keep your whole foot grounded."
+    "cue": "Hold one dumbbell at your chest, sit between your hips, then stand while keeping both feet flat."
   }
 }

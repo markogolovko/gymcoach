@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type Capability, type Equipment, type WeightEntry, type WorkoutItem, type WorkoutSession } from './storage/types'
 import { storage } from './storage/local'
 import { catalog, cueFor, exerciseById, nameFor } from './lib/catalog'
+import exerciseImages from './data/exercise-images.json'
 import { completionRate, doneSetCount, plannedSetCount, summarizeHistory } from './lib/history'
 import { generateWorkout, CoachError } from './lib/openai'
 import { estimateTokens, makePromptPayload, type GenerateInput } from './lib/prompt'
@@ -106,7 +107,10 @@ export function App() {
   const currentSession = useMemo(() => sessions.find(session => session.status === 'active') ?? sortedSessions.find(session => session.status === 'planned') ?? null, [sessions, sortedSessions])
   const detailSession = sessionDetailId ? sessions.find(session => session.id === sessionDetailId) ?? null : null
   const hasTrainingData = sessions.length > 0 || capabilities.length > 0 || weights.length > 0
-  const backupDue = hasTrainingData && (!meta.lastBackupAt || Date.now() - new Date(meta.lastBackupAt).getTime() >= 14 * 86400000)
+  const firstTrainingDataAt = [...sessions.map(session => session.createdAt), ...capabilities.map(capability => capability.updatedAt), ...weights.map(weight => weight.date)]
+    .map(value => new Date(value).getTime()).filter(Number.isFinite).reduce((earliest, value) => Math.min(earliest, value), Number.POSITIVE_INFINITY)
+  const backupReferenceAt = meta.lastBackupAt ? new Date(meta.lastBackupAt).getTime() : firstTrainingDataAt
+  const backupDue = hasTrainingData && Number.isFinite(backupReferenceAt) && Date.now() - backupReferenceAt >= 14 * 86400000
 
   const updateSettings = async (next: AppSettings, recordWeight = false) => {
     try {
@@ -377,10 +381,12 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
         const exercise = exerciseById.get(item.ex)
         const text = exerciseText(item.ex)
         const exerciseLabel = item.ex === 'custom' ? item.name ?? t('generator.custom') : text.name
+        const demoFrames = exerciseImages[item.ex as keyof typeof exerciseImages]?.frames ?? []
         const availableEquipment = new Set(['bodyweight', ...settings.equipment])
         const replacements = [...(exercise?.regressions ?? []), ...(exercise?.progressions ?? [])].filter(id => exerciseById.get(id)?.equipment.every(tag => availableEquipment.has(tag)))
         return <article class={`exercise-card ${item.skipped ? 'exercise-skipped' : ''}`} key={`${key}-${item.ex}`}>
           <div class="exercise-title-row"><div><h3>{exerciseLabel}</h3><p>{text.cue || cueFor(item.ex)}</p>{item.skipped && <span class="skipped-badge">{t('runner.skipped')}</span>}</div><div class="exercise-meta"><strong>{formatNumber(item.sets)} × {formatNumber(item.tgt)}{item.u === 'r' ? ` ${t('app.reps')}` : ` ${t('app.seconds')}`}</strong>{item.load !== null && <span>{formatLoad(item.load, settings.units)} {settings.units}</span>}</div></div>
+          {demoFrames.length > 0 && <div class="exercise-demo">{demoFrames.map((src, frameIndex) => <figure key={src}><img src={src} alt={`${exerciseLabel} — ${t(frameIndex === 0 ? 'runner.demoStart' : frameIndex === demoFrames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}`} loading="lazy" decoding="async" /><figcaption>{t(frameIndex === 0 ? 'runner.demoStart' : frameIndex === demoFrames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}</figcaption></figure>)}</div>}
           {item.note && <p class="exercise-note">{item.note}</p>}
           {!item.skipped && <div class="set-list">{item.log.map((set, si) => <div class={`set-row ${set.done ? 'set-done' : ''}`} key={si}><div class="set-number">{new Intl.NumberFormat(currentLanguage(), { minimumIntegerDigits: 2, useGrouping: false }).format(si + 1)}</div><div class="set-target">{t('app.setCount', { count: si + 1 })}<span>{formatNumber(set.reps)} {item.u === 'r' ? t('app.reps') : t('app.seconds')}</span></div>
             <div class="set-steppers"><div class="stepper" aria-label={t('runner.adjustReps')}><button aria-label={`${t('runner.adjustReps')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: Math.max(0, set.reps - (item.u === 's' ? 5 : 1)) })}><Icon name="minus" /></button><strong>{set.reps}</strong><button aria-label={`${t('runner.adjustReps')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: set.reps + (item.u === 's' ? 5 : 1) })}><Icon name="plus" /></button></div>

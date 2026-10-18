@@ -187,6 +187,10 @@ input[type="range"] { width: 100%; height: 28px; margin: 9px 0 0; accent-color: 
 .exercise-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .exercise-title-row h3 { margin: 1px 0 5px; color: #f0f2eb; font-size: 16px; font-weight: 630; letter-spacing: -.025em; }
 .exercise-title-row p { max-width: 450px; margin: 0; color: #899081; font-size: 11px; line-height: 1.5; }
+.exercise-demo { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; margin: 12px 0 4px; }
+.exercise-demo figure { min-width: 0; margin: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: #e8e7e1; }
+.exercise-demo img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: contain; }
+.exercise-demo figcaption { padding: 5px 8px; background: #1b1e19; color: var(--muted); font-size: 9px; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
 .exercise-meta { display: grid; flex: 0 0 auto; justify-items: end; gap: 5px; color: var(--acid); font-size: 11px; white-space: nowrap; }
 .exercise-meta span { color: var(--muted); font-size: 10px; }
 .exercise-note { width: fit-content; margin: 11px 0 0; border-left: 2px solid #75894e; padding: 3px 0 3px 9px; color: #c2c9b9; font-size: 11px; }

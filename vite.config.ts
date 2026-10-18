@@ -14,6 +14,6 @@ export default defineConfig({
       start_url: './', scope: './',
       icons: [{ src: './icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
     },
-    workbox: { globPatterns: ['**/*.{js,css,html,svg,png,json,woff2}'], navigateFallback: 'index.html', cleanupOutdatedCaches: true },
+    workbox: { globPatterns: ['**/*.{js,css,html,svg,png,jpg,json,woff2}'], navigateFallback: 'index.html', cleanupOutdatedCaches: true },
   })],
 })

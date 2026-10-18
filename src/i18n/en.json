@@ -103,6 +103,9 @@
     "elapsed": "Time moving",
     "setsDone": "sets done",
     "exercise": "exercise",
+    "demoStart": "Start",
+    "demoFinish": "Finish",
+    "demoStep": "Step",
     "markDone": "Complete set",
     "completed": "Done",
     "skipExercise": "Skip movement",
@@ -222,7 +225,7 @@
     "step2": "Choose “Add to Home Screen”.",
     "step3": "Open FORM from its new Home Screen icon. Safari and the installed app keep separate data.",
     "dismiss": "I understand",
-    "reminder": "It’s been a while since your last backup. Export your training data to keep a copy safe.",
+    "reminder": "Your training data hasn’t been backed up recently. Export it to keep a copy safe.",
     "backupNow": "Back up now",
     "later": "Later"
   },
