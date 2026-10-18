@@ -3,7 +3,7 @@ import { exerciseById, filterCatalog } from './catalog'
 import { summarizeHistory } from './history'
 import { workoutJsonSchema } from './workout-schema'
 
-export const SYSTEM_PROMPT = 'You are a careful strength coach. Build a safe, balanced workout using only the supplied exercise IDs and equipment. Return only the requested compact JSON. Respect capability and recent training data; suggest conservative progression. Do not invent catalog IDs. Custom movements are allowed only when no listed ID fits. Write coach and notes in the requested language, each coach field at most two short sentences.'
+export const SYSTEM_PROMPT = 'You are a careful strength coach. Build a safe, balanced workout using only supplied exercise IDs and equipment. IDs in allowed.r are rep-based and must use u:"r"; IDs in allowed.s are time-based and must use u:"s". Only IDs in allowed.load may have a non-null load. Return only the requested compact JSON. Respect capability and recent training data; suggest conservative progression. Do not invent catalog IDs. Custom movements are allowed only when no listed ID fits. Write coach and notes in the requested language, each coach field at most two short sentences.'
 
 export interface GenerateInput { duration: number; focus: string; feel: string; equipment: Equipment[] }
 
@@ -20,9 +20,13 @@ export function makePromptPayload(input: GenerateInput, settings: AppSettings, c
     profile,
     capabilities: caps,
     style: settings.style.slice(0, 500),
-    request: { duration: input.duration, focus: input.focus.slice(0, 120), feel: input.feel.slice(0, 160), equipment: input.equipment, language: settings.language },
+    request: { duration: input.duration, focus: input.focus.slice(0, 120), feel: input.feel.slice(0, 160), equipment: input.equipment, language: 'en' },
     history,
-    allowed: allowed.map(exercise => exercise.id),
+    allowed: {
+      r: allowed.filter(exercise => exercise.type === 'reps').map(exercise => exercise.id),
+      s: allowed.filter(exercise => exercise.type === 'time').map(exercise => exercise.id),
+      load: allowed.filter(exercise => exercise.loadable).map(exercise => exercise.id),
+    },
   }
   return { payload, allowedIds: new Set(allowed.map(exercise => exercise.id)) }
 }

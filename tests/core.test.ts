@@ -53,7 +53,9 @@ describe('workout schema validation', () => {
     const custom = { ...validPlan, blocks: [{ t: 'main', items: [{ ex: 'custom', name: null, sets: 1, tgt: 10, u: 'r', load: null, rest: 30, note: null }] }] }
     expect(() => validateWorkout(custom)).toThrow(/need a name/i)
     const timedAsReps = { ...validPlan, blocks: [{ t: 'main', items: [{ ex: 'plank', name: null, sets: 1, tgt: 30, u: 'r', load: null, rest: 30, note: null }] }] }
-    expect(() => validateWorkout(timedAsReps)).toThrow(/uses seconds/i)
+    expect(() => validateWorkout(timedAsReps)).toThrow(/time-based but response used reps/i)
+    const repsAsTimed = { ...validPlan, blocks: [{ t: 'main', items: [{ ex: 'pull_up', name: null, sets: 1, tgt: 4, u: 's', load: null, rest: 30, note: null }] }] }
+    expect(() => validateWorkout(repsAsTimed)).toThrow(/rep-based but response used seconds/i)
   })
 })
 

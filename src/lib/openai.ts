@@ -32,7 +32,7 @@ export async function generateWorkout(input: GenerateInput, settings: AppSetting
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
         body: JSON.stringify({
-          model: settings.model.trim() || 'gpt-5.4-mini',
+          model: 'gpt-5.4-mini',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: `${JSON.stringify(payload)}${correction}` },
@@ -76,7 +76,7 @@ export async function generateWorkout(input: GenerateInput, settings: AppSetting
       }
     } catch (error) {
       lastValidation = error
-      if (attempt === 0) correction = `\n\nThe previous result failed validation: ${validationMessage(error)}. Return a corrected workout using only allowed IDs.`
+      if (attempt === 0) correction = `\n\nThe previous result failed validation: ${validationMessage(error)}. Follow the allowed.r, allowed.s, and allowed.load groups exactly and return a corrected workout using only allowed IDs.`
     }
   }
   throw new CoachError('invalid', validationMessage(lastValidation))

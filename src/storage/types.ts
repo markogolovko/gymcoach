@@ -104,5 +104,5 @@ export interface Storage {
 export const DEFAULT_SETTINGS: AppSettings = {
   apiKey: '', model: 'gpt-5.4-mini', language: 'en', units: 'kg', style: '',
   profile: { sex: '', age: null, heightCm: null, weightKg: null },
-  equipment: ['bodyweight', 'pullup_bar', 'dip_bars'], equipmentPreset: 'park', iosInstallDismissed: false,
+  equipment: ['bodyweight', 'pullup_bar', 'dip_bars', 'rings', 'parallettes', 'dumbbells', 'barbell', 'kettlebell', 'bands', 'cable', 'machine', 'bench', 'cardio_machine'], equipmentPreset: 'gym', iosInstallDismissed: false,
 }

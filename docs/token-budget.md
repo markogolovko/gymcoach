@@ -11,7 +11,7 @@ Example request body before serialization (actual requests include more allowed 
   "request": { "duration": 50, "focus": "pull strength", "feel": "good energy", "equipment": ["bodyweight", "pullup_bar"], "language": "en" },
   "capabilities": { "pull_up": 8, "chin_up": 10 },
   "history": { "last": [], "exercise": {}, "avg_completion": 0 },
-  "allowed": ["pull_up", "chin_up", "inverted_row", "assisted_pull_up"]
+  "allowed": { "r": ["pull_up", "chin_up", "inverted_row", "assisted_pull_up"], "s": ["plank"], "load": ["pull_up", "chin_up"] }
 }
 ```
 

@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type AppSnapshot, typ
 
 const DB_NAME = 'ai-gym-coach'
 const DB_VERSION = 1
+const PRE_GYM_DEFAULT_EQUIPMENT = ['bodyweight', 'pullup_bar', 'dip_bars']
 
 interface GymDB extends DBSchema {
   settings: { key: 'app'; value: AppSettings }
@@ -56,7 +57,16 @@ export class LocalAdapter implements Storage {
   getSettings() {
     return run('Load settings', async db => {
       const settings = await db.get('settings', 'app')
-      if (settings) return settings
+      if (settings) {
+        // Move installations that still have the original untouched default
+        // to the new gym default, while preserving custom equipment choices.
+        if (settings.equipmentPreset === 'park' && JSON.stringify(settings.equipment) === JSON.stringify(PRE_GYM_DEFAULT_EQUIPMENT)) {
+          const migrated = { ...settings, equipment: DEFAULT_SETTINGS.equipment, equipmentPreset: DEFAULT_SETTINGS.equipmentPreset }
+          await db.put('settings', migrated, 'app')
+          return migrated
+        }
+        return settings
+      }
       await db.put('settings', DEFAULT_SETTINGS, 'app')
       return DEFAULT_SETTINGS
     })

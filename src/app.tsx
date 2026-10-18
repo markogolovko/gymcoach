@@ -8,7 +8,6 @@ import { estimateTokens, makePromptPayload, type GenerateInput } from './lib/pro
 import { adjustEndTime, formatTimer, secondsRemaining } from './lib/timer'
 import { restoreBackup, saveBackupFile } from './lib/backup'
 import { currentLanguage, exerciseText, setLanguage, t, type TranslationKey } from './i18n'
-import { supportedLanguages } from './i18n/config'
 
 type Screen = 'home' | 'generate' | 'runner' | 'history' | 'settings'
 type PersistState = 'yes' | 'no' | 'unsupported'
@@ -220,9 +219,14 @@ export function App() {
       {backupDue && <aside class="backup-banner"><span>{t('install.reminder')}</span><button class="text-button" onClick={() => { navigate('settings'); void exportData(false) }}>{t('install.backupNow')} <Icon name="arrow" /></button></aside>}
 
       {screen === 'home' && <HomeScreen sessions={sessions} currentSession={currentSession} onGenerate={() => navigate('generate')} onContinue={() => { setRunnerId(currentSession?.id ?? null); navigate('runner') }} />}
-      {screen === 'generate' && <GenerateScreen settings={settings} capabilities={capabilities} sessions={sessions} onPlan={async (input) => {
+      {screen === 'generate' && <GenerateScreen settings={settings} capabilities={capabilities} sessions={sessions} onPlan={async (input, apiKey) => {
         try {
-          const result = await generateWorkout(input, settings, capabilities, sessions)
+          const nextSettings = apiKey === settings.apiKey ? settings : { ...settings, apiKey }
+          if (nextSettings !== settings) {
+            await storage.saveSettings(nextSettings)
+            setSettings(nextSettings); setSettingsDraft(nextSettings)
+          }
+          const result = await generateWorkout(input, { ...nextSettings, model: 'gpt-5.4-mini', language: 'en' }, capabilities, sessions)
           const session: WorkoutSession = { id: newId(), status: 'planned', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null, timerEndsAt: null,
             workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
           await storage.saveSession(session)
@@ -233,7 +237,7 @@ export function App() {
           if (error instanceof CoachError) return { ok: false as const, kind: error.kind, message: error.message }
           return { ok: false as const, kind: 'generic' as const, message: error instanceof Error ? error.message : t('generator.errorGeneric') }
         }
-      }} onSettings={() => navigate('settings')} />}
+      }} />}
       {screen === 'runner' && <RunnerScreen session={sessions.find(item => item.id === runnerId) ?? currentSession} settings={settings} onStart={startSession} onFinish={finishSession} mutate={commitSession} onApplyUpdates={applyCapabilityUpdates} onHome={() => navigate('home')} />}
       {screen === 'history' && <HistoryScreen sessions={sortedSessions} weights={weights} units={settings.units} detail={detailSession} onOpen={id => setSessionDetailId(id)} onClose={() => setSessionDetailId(null)} />}
       {screen === 'settings' && <SettingsScreen settings={settingsDraft} setDraft={setSettingsDraft} capabilities={capabilities} meta={meta} persistState={persistState} storageEstimate={storageEstimate} onSave={updateSettings} onRecordWeight={logCurrentWeight} onSaveCapability={saveCapability} onRemoveCapability={removeCapability} onExport={exportData} onImportClick={() => fileInput.current?.click()} />}
@@ -264,7 +268,7 @@ function HomeScreen({ sessions, currentSession, onGenerate, onContinue }: { sess
   </section>
 }
 
-function GenerateScreen({ settings, capabilities, sessions, onPlan, onSettings }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; onPlan: (input: GenerateInput) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }>; onSettings: () => void }) {
+function GenerateScreen({ settings, capabilities, sessions, onPlan }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; onPlan: (input: GenerateInput, apiKey: string) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }>; }) {
   const [duration, setDuration] = useState(60)
   const [focus, setFocus] = useState('')
   const [feel, setFeel] = useState('')
@@ -272,18 +276,20 @@ function GenerateScreen({ settings, capabilities, sessions, onPlan, onSettings }
   const [preset, setPreset] = useState(settings.equipmentPreset)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [apiKey, setApiKey] = useState(settings.apiKey)
+  const [showKey, setShowKey] = useState(false)
   const [usage, setUsage] = useState<{ promptTokens: number; completionTokens: number } | null>(null)
   const estimatedTokens = useMemo(() => estimateTokens(makePromptPayload({ duration, focus, feel, equipment }, settings, capabilities, sessions).payload), [duration, focus, feel, equipment, settings, capabilities, sessions])
 
   const changePreset = (value: string) => { setPreset(value); if (presets[value]) setEquipment(presets[value]) }
   const submit = async (event: Event) => {
     event.preventDefault(); setError(''); setUsage(null)
-    if (!settings.apiKey.trim()) { setError('key'); return }
+    if (!apiKey.trim()) { setError('key'); return }
     setPending(true)
-    const result = await onPlan({ duration, focus, feel, equipment })
+    const result = await onPlan({ duration, focus, feel, equipment }, apiKey.trim())
     setPending(false)
     if (result.ok) setUsage(result.usage)
-    else setError(result.kind === 'generic' ? result.message : result.kind)
+    else setError(result.kind === 'invalid' || result.kind === 'generic' ? result.message : result.kind)
   }
   return <section class="builder-screen"><header class="section-intro"><p class="eyebrow">{t('generator.eyebrow')}</p><h1>{t('generator.title')}</h1><p>{t('generator.description')}</p></header>
     <form class="builder-card" onSubmit={submit}>
@@ -292,9 +298,9 @@ function GenerateScreen({ settings, capabilities, sessions, onPlan, onSettings }
       <div class="form-group"><label for="gen-preset">{t('settings.preset')}</label><select class="text-input" id="gen-preset" value={preset} onChange={event => changePreset((event.currentTarget as HTMLSelectElement).value)}><option value="park">{t('generator.presetPark')}</option><option value="gym">{t('generator.presetGym')}</option><option value="home">{t('generator.presetHome')}</option><option value="custom">{t('generator.presetCustom')}</option></select></div>
       <fieldset class="equipment-grid"><legend>{t('generator.equipment')}</legend>{equipmentKeys.map(key => <label class="check-chip" key={key}><input type="checkbox" checked={equipment.includes(key)} onChange={event => { setPreset('custom'); setEquipment(value => event.currentTarget.checked ? [...new Set([...value, key])] : value.filter(x => x !== key)) }} /><span class="check-mark"><Icon name="check" /></span>{t(`equipment.${key}` as TranslationKey)}</label>)}</fieldset>
       <div class="token-estimate"><span><Icon name="spark" />{t('generator.tokenEstimate')}</span><strong>{t('generator.estimatedTokens', { count: estimatedTokens })}</strong></div>
-      {!settings.apiKey && <button type="button" class="inline-alert" onClick={onSettings}>{t('generator.apiKeyMissing')} <Icon name="arrow" /></button>}
-      {error && <p class="form-error" role="alert">{error === 'key' ? t('generator.errorKey') : error === 'rate' ? t('generator.errorRate') : error === 'network' ? t('generator.errorNetwork') : error === 'invalid' ? t('generator.errorGeneric') : error}</p>}
-      <button class="button button-primary full-width builder-submit" type="submit" disabled={pending || !equipment.length}>{pending ? <><span class="spinner" />{t('generator.building')}</> : <>{t('generator.build')}<Icon name="arrow" /></>}</button>
+      {(!settings.apiKey || error === 'key') && <div class="settings-card generator-key-card"><p class="eyebrow">{t('generator.keyTitle')}</p><p class="card-description">{error === 'key' ? t('generator.errorKey') : t('generator.apiKeyMissing')}</p><label class="form-group"><span>{t('settings.apiKey')}</span><div class="input-with-action"><input class="text-input" type={showKey ? 'text' : 'password'} autocomplete="off" spellcheck={false} value={apiKey} placeholder={t('settings.apiKeyPlaceholder')} onInput={event => setApiKey((event.currentTarget as HTMLInputElement).value)} /><button class="show-key" type="button" onClick={() => setShowKey(!showKey)}>{showKey ? t('settings.hideKey') : t('settings.showKey')}</button></div><small class="field-hint">{t('settings.apiKeyHelp')}</small></label></div>}
+      {error && error !== 'key' && <p class="form-error" role="alert">{error === 'rate' ? t('generator.errorRate') : error === 'network' ? t('generator.errorNetwork') : error}</p>}
+      <button class="button button-primary full-width builder-submit" type="submit" disabled={pending || !equipment.length || !apiKey.trim()}>{pending ? <><span class="spinner" />{t('generator.building')}</> : <>{!settings.apiKey ? t('generator.saveKeyBuild') : t('generator.build')}<Icon name="arrow" /></>}</button>
       {usage && <p class="usage-note">{t('generator.usage', { prompt: usage.promptTokens, completion: usage.completionTokens })}</p>}
       <p class="privacy-line">{t('app.notice')}</p>
     </form>
@@ -470,15 +476,14 @@ function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, 
   const visibleWeight = settings.profile.weightKg === null ? '' : String(Number((settings.units === 'lb' ? settings.profile.weightKg * 2.20462 : settings.profile.weightKg).toFixed(1)))
   return <section class="settings-screen"><header class="section-intro"><p class="eyebrow">{t('settings.eyebrow')}</p><h1>{t('settings.title')}</h1><p>{t('settings.description')}</p></header>
     <div class="settings-layout">
-      <section class="settings-card"><div class="settings-card-heading"><span class="section-number">01</span><div><p class="eyebrow">{t('settings.accountTitle')}</p><h2>{t('settings.model')}</h2></div><span class="section-icon"><Icon name="spark" /></span></div>
+      <section class="settings-card"><div class="settings-card-heading"><span class="section-number">01</span><div><p class="eyebrow">{t('settings.accountTitle')}</p><h2>{t('settings.apiAccessTitle')}</h2></div><span class="section-icon"><Icon name="spark" /></span></div>
         <label class="form-group"><span>{t('settings.apiKey')}</span><div class="input-with-action"><input class="text-input" type={showKey ? 'text' : 'password'} autocomplete="off" spellcheck={false} value={settings.apiKey} placeholder={t('settings.apiKeyPlaceholder')} onInput={event => update({ apiKey: (event.currentTarget as HTMLInputElement).value })} /><button class="show-key" type="button" onClick={() => setShowKey(!showKey)}>{showKey ? t('settings.hideKey') : t('settings.showKey')}</button></div><small class="field-hint">{t('settings.apiKeyHelp')}</small></label>
-        <label class="form-group"><span>{t('settings.model')}</span><input class="text-input" value={settings.model} onInput={event => update({ model: (event.currentTarget as HTMLInputElement).value })} /><small class="field-hint">{t('settings.modelHelp')}</small></label>
-        <div class="form-row"><label class="form-group"><span>{t('settings.language')}</span><select class="text-input" value={settings.language} onChange={event => update({ language: (event.currentTarget as HTMLSelectElement).value })}>{supportedLanguages.map(code => <option value={code} key={code}>{t(`settings.language${code[0].toUpperCase()}${code.slice(1)}` as TranslationKey)}</option>)}</select></label><label class="form-group"><span>{t('settings.units')}</span><select class="text-input" value={settings.units} onChange={event => update({ units: (event.currentTarget as HTMLSelectElement).value as 'kg' | 'lb' })}><option value="kg">kg</option><option value="lb">lb</option></select></label></div>
       </section>
 
       <section class="settings-card"><div class="settings-card-heading"><span class="section-number">02</span><div><p class="eyebrow">{t('settings.profileTitle')}</p><h2>{t('settings.profileTitle')}</h2></div><span class="section-icon"><Icon name="home" /></span></div>
         <div class="form-row"><label class="form-group"><span>{t('settings.sex')}</span><select class="text-input" value={settings.profile.sex} onChange={event => updateProfile({ sex: (event.currentTarget as HTMLSelectElement).value })}><option value="">{t('settings.sexUnspecified')}</option><option value="female">{t('settings.sexFemale')}</option><option value="male">{t('settings.sexMale')}</option><option value="other">{t('settings.sexOther')}</option></select></label><label class="form-group"><span>{t('settings.age')}</span><input class="text-input" type="number" min="13" max="100" value={settings.profile.age ?? ''} onInput={event => updateProfile({ age: Number((event.currentTarget as HTMLInputElement).value) || null })} /></label></div>
         <div class="form-row"><label class="form-group"><span>{t('settings.height')}</span><input class="text-input" type="number" min="100" max="250" value={settings.profile.heightCm ?? ''} onInput={event => updateProfile({ heightCm: Number((event.currentTarget as HTMLInputElement).value) || null })} /></label><label class="form-group"><span>{t('settings.weight')} ({settings.units})</span><input class="text-input" type="number" min="25" max="350" step="0.1" value={visibleWeight} onInput={event => updateProfile({ weightKg: (Number((event.currentTarget as HTMLInputElement).value) || 0) ? toKg(Number((event.currentTarget as HTMLInputElement).value), settings.units) : null })} /></label></div>
+        <label class="form-group"><span>{t('settings.units')}</span><select class="text-input" value={settings.units} onChange={event => update({ units: (event.currentTarget as HTMLSelectElement).value as 'kg' | 'lb' })}><option value="kg">kg</option><option value="lb">lb</option></select></label>
         {settings.profile.weightKg !== null && <button class="text-button weight-log-button" type="button" onClick={() => void onRecordWeight(settings)}><Icon name="plus" />{t('settings.recordWeight')}</button>}
         <label class="form-group"><span>{t('settings.style')}</span><textarea class="text-input textarea" maxlength={500} value={settings.style} placeholder={t('settings.stylePlaceholder')} onInput={event => update({ style: (event.currentTarget as HTMLTextAreaElement).value.slice(0, 500) })} /><small class="field-hint">{t('settings.styleHelp')}</small></label>
       </section>

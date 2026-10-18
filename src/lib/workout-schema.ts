@@ -67,8 +67,8 @@ export function validateWorkout(value: unknown, allowedExerciseIds?: Set<string>
       const exercise = catalog.find(entry => entry.id === item.ex)
       if (!exercise) throw new Error(`Unknown exercise id: ${item.ex}`)
       if (allowedExerciseIds && !allowedExerciseIds.has(item.ex)) throw new Error(`Exercise ${item.ex} is not in the allowed equipment list.`)
-      if (exercise.type === 'time' && item.u !== 's') throw new Error(`${item.ex} uses seconds.`)
-      if (exercise.type === 'reps' && item.u !== 'r') throw new Error(`${item.ex} uses reps.`)
+      if (exercise.type === 'time' && item.u !== 's') throw new Error(`${item.ex} is time-based but response used reps.`)
+      if (exercise.type === 'reps' && item.u !== 'r') throw new Error(`${item.ex} is rep-based but response used seconds.`)
       if (item.load !== null && !exercise.loadable) throw new Error(`${item.ex} cannot have a load.`)
     }
   }
