@@ -1,0 +1,490 @@
+{
+  "push_up": {
+    "name": "Push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "incline_push_up": {
+    "name": "Incline push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "knee_push_up": {
+    "name": "Knee push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "decline_push_up": {
+    "name": "Decline push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "diamond_push_up": {
+    "name": "Diamond push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "archer_push_up": {
+    "name": "Archer push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "pseudo_planche_push_up": {
+    "name": "Pseudo-planche push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "pike_push_up": {
+    "name": "Pike push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "elevated_pike_push_up": {
+    "name": "Elevated pike push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "wall_handstand_push_up": {
+    "name": "Wall handstand push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "handstand_push_up": {
+    "name": "Handstand push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "ring_push_up": {
+    "name": "Ring push-up",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "ring_dip": {
+    "name": "Ring dip",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "dip": {
+    "name": "Parallel-bar dip",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "bench_dip": {
+    "name": "Bench dip",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "planche_lean": {
+    "name": "Planche lean",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "pull_up": {
+    "name": "Pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "chin_up": {
+    "name": "Chin-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "neutral_grip_pull_up": {
+    "name": "Neutral-grip pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "assisted_pull_up": {
+    "name": "Assisted pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "negative_pull_up": {
+    "name": "Negative pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "archer_pull_up": {
+    "name": "Archer pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "typewriter_pull_up": {
+    "name": "Typewriter pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "muscle_up": {
+    "name": "Muscle-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "sternum_pull_up": {
+    "name": "Sternum pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "inverted_row": {
+    "name": "Inverted row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "ring_row": {
+    "name": "Ring row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "archer_row": {
+    "name": "Archer row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "feet_elevated_row": {
+    "name": "Feet-elevated row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "scapular_pull_up": {
+    "name": "Scapular pull-up",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "active_hang": {
+    "name": "Active hang",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "dead_hang": {
+    "name": "Dead hang",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "tuck_front_lever": {
+    "name": "Tuck front lever",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "front_lever_raise": {
+    "name": "Front lever raise",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "skin_the_cat": {
+    "name": "Skin the cat",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "bodyweight_squat": {
+    "name": "Bodyweight squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "split_squat": {
+    "name": "Split squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "reverse_lunge": {
+    "name": "Reverse lunge",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "forward_lunge": {
+    "name": "Forward lunge",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "cossack_squat": {
+    "name": "Cossack squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "shrimp_squat": {
+    "name": "Shrimp squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "assisted_pistol_squat": {
+    "name": "Assisted pistol squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "pistol_squat": {
+    "name": "Pistol squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "sissy_squat": {
+    "name": "Sissy squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "nordic_curl": {
+    "name": "Nordic curl",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "glute_bridge": {
+    "name": "Glute bridge",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "single_leg_glute_bridge": {
+    "name": "Single-leg glute bridge",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "hip_thrust": {
+    "name": "Hip thrust",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "calf_raise": {
+    "name": "Calf raise",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "single_leg_calf_raise": {
+    "name": "Single-leg calf raise",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "hamstring_walkout": {
+    "name": "Hamstring walkout",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "step_up": {
+    "name": "Step-up",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "wall_sit": {
+    "name": "Wall sit",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "squat_jump": {
+    "name": "Squat jump",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "reverse_nordic": {
+    "name": "Reverse Nordic curl",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "plank": {
+    "name": "Plank",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "side_plank": {
+    "name": "Side plank",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "hollow_hold": {
+    "name": "Hollow-body hold",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "arch_hold": {
+    "name": "Arch hold",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "dead_bug": {
+    "name": "Dead bug",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "hanging_knee_raise": {
+    "name": "Hanging knee raise",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "hanging_leg_raise": {
+    "name": "Hanging leg raise",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "toes_to_bar": {
+    "name": "Toes-to-bar",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "windshield_wiper": {
+    "name": "Hanging windshield wiper",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "dragon_flag": {
+    "name": "Dragon flag",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "l_sit": {
+    "name": "L-sit",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "v_sit": {
+    "name": "V-sit",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "mountain_climber": {
+    "name": "Mountain climber",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "bear_crawl": {
+    "name": "Bear crawl",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "bird_dog": {
+    "name": "Bird dog",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "bicycle_crunch": {
+    "name": "Bicycle crunch",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "reverse_crunch": {
+    "name": "Reverse crunch",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "russian_twist": {
+    "name": "Russian twist",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "scapular_push_up": {
+    "name": "Scapular push-up",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "ring_support_hold": {
+    "name": "Ring support hold",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "shoulder_tap": {
+    "name": "Plank shoulder tap",
+    "cue": "Breathe steadily and keep your ribs stacked over your hips."
+  },
+  "shoulder_dislocate": {
+    "name": "Band shoulder pass-through",
+    "cue": "Move gently through a comfortable range without forcing the stretch."
+  },
+  "worlds_greatest_stretch": {
+    "name": "World’s greatest stretch",
+    "cue": "Move gently through a comfortable range without forcing the stretch."
+  },
+  "deep_squat_hold": {
+    "name": "Deep squat hold",
+    "cue": "Move gently through a comfortable range without forcing the stretch."
+  },
+  "hip_flexor_stretch": {
+    "name": "Half-kneeling hip flexor stretch",
+    "cue": "Move gently through a comfortable range without forcing the stretch."
+  },
+  "wrist_prep": {
+    "name": "Wrist rocks",
+    "cue": "Move gently through a comfortable range without forcing the stretch."
+  },
+  "dumbbell_bench_press": {
+    "name": "Dumbbell bench press",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "dumbbell_incline_press": {
+    "name": "Dumbbell incline press",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "dumbbell_overhead_press": {
+    "name": "Dumbbell overhead press",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "dumbbell_lateral_raise": {
+    "name": "Dumbbell lateral raise",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "dumbbell_chest_fly": {
+    "name": "Dumbbell chest fly",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "barbell_bench_press": {
+    "name": "Barbell bench press",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "overhead_press": {
+    "name": "Barbell overhead press",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "cable_chest_fly": {
+    "name": "Cable chest fly",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "cable_tricep_pushdown": {
+    "name": "Cable triceps pushdown",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "cable_lateral_raise": {
+    "name": "Cable lateral raise",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "chest_press_machine": {
+    "name": "Machine chest press",
+    "cue": "Brace your torso and move with steady control."
+  },
+  "dumbbell_row": {
+    "name": "Dumbbell row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "renegade_row": {
+    "name": "Renegade row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "dumbbell_reverse_fly": {
+    "name": "Dumbbell reverse fly",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "dumbbell_curl": {
+    "name": "Dumbbell curl",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "hammer_curl": {
+    "name": "Hammer curl",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "barbell_row": {
+    "name": "Barbell row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "lat_pulldown": {
+    "name": "Lat pulldown",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "seated_cable_row": {
+    "name": "Seated cable row",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "cable_face_pull": {
+    "name": "Cable face pull",
+    "cue": "Keep your shoulders down and avoid swinging."
+  },
+  "dumbbell_split_squat": {
+    "name": "Dumbbell split squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "goblet_squat": {
+    "name": "Goblet squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "dumbbell_rdl": {
+    "name": "Dumbbell Romanian deadlift",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "dumbbell_hip_thrust": {
+    "name": "Dumbbell hip thrust",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "dumbbell_calf_raise": {
+    "name": "Dumbbell calf raise",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "barbell_squat": {
+    "name": "Barbell back squat",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "deadlift": {
+    "name": "Barbell deadlift",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "romanian_deadlift": {
+    "name": "Barbell Romanian deadlift",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "barbell_hip_thrust": {
+    "name": "Barbell hip thrust",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "leg_press": {
+    "name": "Leg press",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "seated_leg_curl": {
+    "name": "Seated leg curl",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "leg_extension": {
+    "name": "Leg extension",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "machine_calf_raise": {
+    "name": "Machine calf raise",
+    "cue": "Keep your whole foot grounded and control the lowering phase."
+  },
+  "treadmill_run": {
+    "name": "Treadmill run",
+    "cue": "Choose a pace you can sustain with smooth, even breathing."
+  },
+  "treadmill_walk": {
+    "name": "Treadmill walk",
+    "cue": "Choose a pace you can sustain with smooth, even breathing."
+  },
+  "stationary_bike": {
+    "name": "Stationary bike",
+    "cue": "Choose a pace you can sustain with smooth, even breathing."
+  },
+  "rowing_machine": {
+    "name": "Rowing machine",
+    "cue": "Choose a pace you can sustain with smooth, even breathing."
+  },
+  "elliptical": {
+    "name": "Elliptical trainer",
+    "cue": "Choose a pace you can sustain with smooth, even breathing."
+  },
+  "stair_climber": {
+    "name": "Stair climber",
+    "cue": "Choose a pace you can sustain with smooth, even breathing."
+  },
+  "l_sit_dip_bars": {
+    "name": "L-sit on dip bars",
+    "cue": "Press down through the bars and keep your shoulders away from your ears."
+  },
+  "dumbbell_goblet_squat": {
+    "name": "Dumbbell goblet squat",
+    "cue": "Hold one dumbbell close to your chest and keep your whole foot grounded."
+  }
+}

@@ -1,0 +1,2515 @@
+[
+  {
+    "id": "push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "decline_push_up"
+    ],
+    "regressions": [
+      "knee_push_up"
+    ]
+  },
+  {
+    "id": "incline_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "push_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "knee_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "push_up"
+    ],
+    "regressions": [
+      "incline_push_up"
+    ]
+  },
+  {
+    "id": "decline_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_push_up"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "diamond_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_push_up"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "archer_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "handstand_push_up"
+    ],
+    "regressions": [
+      "decline_push_up"
+    ]
+  },
+  {
+    "id": "pseudo_planche_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "handstand_push_up"
+    ],
+    "regressions": [
+      "decline_push_up"
+    ]
+  },
+  {
+    "id": "pike_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "decline_push_up"
+    ],
+    "regressions": [
+      "incline_push_up"
+    ]
+  },
+  {
+    "id": "elevated_pike_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_push_up"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "wall_handstand_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "handstand_push_up"
+    ],
+    "regressions": [
+      "decline_push_up"
+    ]
+  },
+  {
+    "id": "handstand_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "archer_push_up"
+    ]
+  },
+  {
+    "id": "ring_push_up",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "rings"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_push_up"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "ring_dip",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "rings"
+    ],
+    "loadable": false,
+    "progressions": [
+      "handstand_push_up"
+    ],
+    "regressions": [
+      "decline_push_up"
+    ]
+  },
+  {
+    "id": "dip",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "dip_bars"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_push_up"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "bench_dip",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bench"
+    ],
+    "loadable": false,
+    "progressions": [
+      "push_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "planche_lean",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 4,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "handstand_push_up"
+    ],
+    "regressions": [
+      "decline_push_up"
+    ]
+  },
+  {
+    "id": "pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_pull_up"
+    ],
+    "regressions": [
+      "assisted_pull_up"
+    ]
+  },
+  {
+    "id": "chin_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "muscle_up"
+    ],
+    "regressions": [
+      "negative_pull_up"
+    ]
+  },
+  {
+    "id": "neutral_grip_pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_pull_up"
+    ],
+    "regressions": [
+      "chin_up"
+    ]
+  },
+  {
+    "id": "assisted_pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "negative_pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "pull_up"
+    ],
+    "regressions": [
+      "assisted_pull_up"
+    ]
+  },
+  {
+    "id": "archer_pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "typewriter_pull_up"
+    ],
+    "regressions": [
+      "pull_up"
+    ]
+  },
+  {
+    "id": "typewriter_pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "archer_pull_up"
+    ]
+  },
+  {
+    "id": "muscle_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "archer_pull_up"
+    ]
+  },
+  {
+    "id": "sternum_pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "typewriter_pull_up"
+    ],
+    "regressions": [
+      "pull_up"
+    ]
+  },
+  {
+    "id": "inverted_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "feet_elevated_row"
+    ],
+    "regressions": [
+      "ring_row"
+    ]
+  },
+  {
+    "id": "ring_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "rings"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_row"
+    ],
+    "regressions": [
+      "inverted_row"
+    ]
+  },
+  {
+    "id": "archer_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_pull_up"
+    ],
+    "regressions": [
+      "chin_up"
+    ]
+  },
+  {
+    "id": "feet_elevated_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_pull_up"
+    ],
+    "regressions": [
+      "chin_up"
+    ]
+  },
+  {
+    "id": "scapular_pull_up",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "active_hang",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "dead_hang",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "tuck_front_lever",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 3,
+    "type": "time",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "archer_pull_up"
+    ],
+    "regressions": [
+      "chin_up"
+    ]
+  },
+  {
+    "id": "front_lever_raise",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "archer_pull_up"
+    ]
+  },
+  {
+    "id": "skin_the_cat",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "rings"
+    ],
+    "loadable": false,
+    "progressions": [
+      "typewriter_pull_up"
+    ],
+    "regressions": [
+      "pull_up"
+    ]
+  },
+  {
+    "id": "bodyweight_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "pistol_squat"
+    ],
+    "regressions": [
+      "step_up"
+    ]
+  },
+  {
+    "id": "split_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "reverse_lunge",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "forward_lunge",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "cossack_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "shrimp_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "shrimp_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "pistol_squat"
+    ],
+    "regressions": [
+      "cossack_squat"
+    ]
+  },
+  {
+    "id": "assisted_pistol_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "pistol_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "pistol_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "shrimp_squat"
+    ]
+  },
+  {
+    "id": "sissy_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "pistol_squat"
+    ],
+    "regressions": [
+      "cossack_squat"
+    ]
+  },
+  {
+    "id": "nordic_curl",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "shrimp_squat"
+    ]
+  },
+  {
+    "id": "glute_bridge",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "single_leg_glute_bridge",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "hip_thrust",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "calf_raise",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "single_leg_calf_raise",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "hamstring_walkout",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "shrimp_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "step_up",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "wall_sit",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "squat_jump",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "reverse_nordic",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "shrimp_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "plank",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "hollow_hold"
+    ],
+    "regressions": [
+      "dead_bug"
+    ]
+  },
+  {
+    "id": "side_plank",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 2,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "ring_support_hold"
+    ],
+    "regressions": [
+      "plank"
+    ]
+  },
+  {
+    "id": "hollow_hold",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 2,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "ring_support_hold"
+    ],
+    "regressions": [
+      "plank"
+    ]
+  },
+  {
+    "id": "arch_hold",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "side_plank"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "dead_bug",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "side_plank"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "hanging_knee_raise",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "hanging_leg_raise"
+    ],
+    "regressions": [
+      "reverse_crunch"
+    ]
+  },
+  {
+    "id": "hanging_leg_raise",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 4,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [
+      "toes_to_bar"
+    ],
+    "regressions": [
+      "ring_support_hold"
+    ]
+  },
+  {
+    "id": "toes_to_bar",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "hanging_leg_raise"
+    ]
+  },
+  {
+    "id": "windshield_wiper",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight",
+      "pullup_bar"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "hanging_leg_raise"
+    ]
+  },
+  {
+    "id": "dragon_flag",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 5,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "hanging_leg_raise"
+    ]
+  },
+  {
+    "id": "l_sit",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 4,
+    "type": "time",
+    "equipment": [
+      "parallettes"
+    ],
+    "loadable": false,
+    "progressions": [
+      "toes_to_bar"
+    ],
+    "regressions": [
+      "ring_support_hold"
+    ]
+  },
+  {
+    "id": "v_sit",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 5,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "hanging_leg_raise"
+    ]
+  },
+  {
+    "id": "mountain_climber",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "side_plank"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "bear_crawl",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "ring_support_hold"
+    ],
+    "regressions": [
+      "plank"
+    ]
+  },
+  {
+    "id": "bird_dog",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "side_plank"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "bicycle_crunch",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "side_plank"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "reverse_crunch",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "side_plank"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "russian_twist",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "ring_support_hold"
+    ],
+    "regressions": [
+      "plank"
+    ]
+  },
+  {
+    "id": "scapular_push_up",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "side_plank"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "ring_support_hold",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 3,
+    "type": "time",
+    "equipment": [
+      "rings"
+    ],
+    "loadable": false,
+    "progressions": [
+      "hanging_leg_raise"
+    ],
+    "regressions": [
+      "side_plank"
+    ]
+  },
+  {
+    "id": "shoulder_tap",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [
+      "ring_support_hold"
+    ],
+    "regressions": [
+      "plank"
+    ]
+  },
+  {
+    "id": "shoulder_dislocate",
+    "muscles": [
+      "shoulders",
+      "hips",
+      "ankles"
+    ],
+    "pattern": "mobility",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bands"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": []
+  },
+  {
+    "id": "worlds_greatest_stretch",
+    "muscles": [
+      "shoulders",
+      "hips",
+      "ankles"
+    ],
+    "pattern": "mobility",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": []
+  },
+  {
+    "id": "deep_squat_hold",
+    "muscles": [
+      "shoulders",
+      "hips",
+      "ankles"
+    ],
+    "pattern": "mobility",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": []
+  },
+  {
+    "id": "hip_flexor_stretch",
+    "muscles": [
+      "shoulders",
+      "hips",
+      "ankles"
+    ],
+    "pattern": "mobility",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": []
+  },
+  {
+    "id": "wrist_prep",
+    "muscles": [
+      "shoulders",
+      "hips",
+      "ankles"
+    ],
+    "pattern": "mobility",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "bodyweight"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": []
+  },
+  {
+    "id": "dumbbell_bench_press",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells",
+      "bench"
+    ],
+    "loadable": true,
+    "progressions": [
+      "barbell_bench_press"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "dumbbell_incline_press",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells",
+      "bench"
+    ],
+    "loadable": true,
+    "progressions": [
+      "decline_push_up"
+    ],
+    "regressions": [
+      "incline_push_up"
+    ]
+  },
+  {
+    "id": "dumbbell_overhead_press",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "decline_push_up"
+    ],
+    "regressions": [
+      "incline_push_up"
+    ]
+  },
+  {
+    "id": "dumbbell_lateral_raise",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "push_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "dumbbell_chest_fly",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells",
+      "bench"
+    ],
+    "loadable": true,
+    "progressions": [
+      "decline_push_up"
+    ],
+    "regressions": [
+      "incline_push_up"
+    ]
+  },
+  {
+    "id": "barbell_bench_press",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "barbell",
+      "bench"
+    ],
+    "loadable": true,
+    "progressions": [
+      "archer_push_up"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "overhead_press",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "barbell"
+    ],
+    "loadable": true,
+    "progressions": [
+      "archer_push_up"
+    ],
+    "regressions": [
+      "push_up"
+    ]
+  },
+  {
+    "id": "cable_chest_fly",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "cable"
+    ],
+    "loadable": true,
+    "progressions": [
+      "decline_push_up"
+    ],
+    "regressions": [
+      "incline_push_up"
+    ]
+  },
+  {
+    "id": "cable_tricep_pushdown",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "cable"
+    ],
+    "loadable": true,
+    "progressions": [
+      "push_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "cable_lateral_raise",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "cable"
+    ],
+    "loadable": true,
+    "progressions": [
+      "decline_push_up"
+    ],
+    "regressions": [
+      "incline_push_up"
+    ]
+  },
+  {
+    "id": "chest_press_machine",
+    "muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ],
+    "pattern": "push",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "machine"
+    ],
+    "loadable": true,
+    "progressions": [
+      "push_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "dumbbell_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "pull_up"
+    ],
+    "regressions": [
+      "assisted_pull_up"
+    ]
+  },
+  {
+    "id": "renegade_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "archer_pull_up"
+    ],
+    "regressions": [
+      "chin_up"
+    ]
+  },
+  {
+    "id": "dumbbell_reverse_fly",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "pull_up"
+    ],
+    "regressions": [
+      "assisted_pull_up"
+    ]
+  },
+  {
+    "id": "dumbbell_curl",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "hammer_curl",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "barbell_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "barbell"
+    ],
+    "loadable": true,
+    "progressions": [
+      "archer_pull_up"
+    ],
+    "regressions": [
+      "chin_up"
+    ]
+  },
+  {
+    "id": "lat_pulldown",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "machine"
+    ],
+    "loadable": true,
+    "progressions": [
+      "pull_up"
+    ],
+    "regressions": [
+      "assisted_pull_up"
+    ]
+  },
+  {
+    "id": "seated_cable_row",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "cable"
+    ],
+    "loadable": true,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "cable_face_pull",
+    "muscles": [
+      "back",
+      "biceps",
+      "forearms"
+    ],
+    "pattern": "pull",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "cable"
+    ],
+    "loadable": true,
+    "progressions": [
+      "chin_up"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "dumbbell_split_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "goblet_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "kettlebell"
+    ],
+    "loadable": true,
+    "progressions": [
+      "barbell_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "dumbbell_rdl",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "dumbbell_hip_thrust",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 2,
+    "type": "reps",
+    "equipment": [
+      "dumbbells",
+      "bench"
+    ],
+    "loadable": true,
+    "progressions": [
+      "cossack_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  },
+  {
+    "id": "dumbbell_calf_raise",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "barbell_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "barbell"
+    ],
+    "loadable": true,
+    "progressions": [
+      "shrimp_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "deadlift",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "barbell"
+    ],
+    "loadable": true,
+    "progressions": [
+      "shrimp_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "romanian_deadlift",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "barbell"
+    ],
+    "loadable": true,
+    "progressions": [
+      "shrimp_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "barbell_hip_thrust",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 3,
+    "type": "reps",
+    "equipment": [
+      "barbell",
+      "bench"
+    ],
+    "loadable": true,
+    "progressions": [
+      "shrimp_squat"
+    ],
+    "regressions": [
+      "split_squat"
+    ]
+  },
+  {
+    "id": "leg_press",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "machine"
+    ],
+    "loadable": true,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "seated_leg_curl",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "machine"
+    ],
+    "loadable": true,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "leg_extension",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "machine"
+    ],
+    "loadable": true,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "machine_calf_raise",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "machine"
+    ],
+    "loadable": true,
+    "progressions": [
+      "split_squat"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "treadmill_run",
+    "muscles": [
+      "heart",
+      "lungs",
+      "legs"
+    ],
+    "pattern": "cardio",
+    "level": 2,
+    "type": "time",
+    "equipment": [
+      "cardio_machine"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "treadmill_walk"
+    ]
+  },
+  {
+    "id": "treadmill_walk",
+    "muscles": [
+      "heart",
+      "lungs",
+      "legs"
+    ],
+    "pattern": "cardio",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "cardio_machine"
+    ],
+    "loadable": false,
+    "progressions": [
+      "treadmill_run"
+    ],
+    "regressions": [
+      "stationary_bike"
+    ]
+  },
+  {
+    "id": "stationary_bike",
+    "muscles": [
+      "heart",
+      "lungs",
+      "legs"
+    ],
+    "pattern": "cardio",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "cardio_machine"
+    ],
+    "loadable": false,
+    "progressions": [
+      "treadmill_run"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "rowing_machine",
+    "muscles": [
+      "heart",
+      "lungs",
+      "legs"
+    ],
+    "pattern": "cardio",
+    "level": 2,
+    "type": "time",
+    "equipment": [
+      "cardio_machine"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "treadmill_walk"
+    ]
+  },
+  {
+    "id": "elliptical",
+    "muscles": [
+      "heart",
+      "lungs",
+      "legs"
+    ],
+    "pattern": "cardio",
+    "level": 1,
+    "type": "time",
+    "equipment": [
+      "cardio_machine"
+    ],
+    "loadable": false,
+    "progressions": [
+      "treadmill_run"
+    ],
+    "regressions": []
+  },
+  {
+    "id": "stair_climber",
+    "muscles": [
+      "heart",
+      "lungs",
+      "legs"
+    ],
+    "pattern": "cardio",
+    "level": 2,
+    "type": "time",
+    "equipment": [
+      "cardio_machine"
+    ],
+    "loadable": false,
+    "progressions": [],
+    "regressions": [
+      "treadmill_walk"
+    ]
+  },
+  {
+    "id": "l_sit_dip_bars",
+    "muscles": [
+      "abdominals",
+      "obliques",
+      "lower_back"
+    ],
+    "pattern": "core",
+    "level": 4,
+    "type": "time",
+    "equipment": [
+      "dip_bars"
+    ],
+    "loadable": false,
+    "progressions": [
+      "toes_to_bar"
+    ],
+    "regressions": [
+      "ring_support_hold"
+    ]
+  },
+  {
+    "id": "dumbbell_goblet_squat",
+    "muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ],
+    "pattern": "legs",
+    "level": 1,
+    "type": "reps",
+    "equipment": [
+      "dumbbells"
+    ],
+    "loadable": true,
+    "progressions": [
+      "barbell_squat"
+    ],
+    "regressions": [
+      "bodyweight_squat"
+    ]
+  }
+]
