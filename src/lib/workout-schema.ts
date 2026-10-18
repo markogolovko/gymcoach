@@ -72,15 +72,18 @@ export function validateWorkout(value: unknown, allowedExerciseIds?: Set<string>
       if (item.load !== null && !exercise.loadable) throw new Error(`${item.ex} cannot have a load.`)
     }
   }
-  for (const update of parsed.cap_updates) {
-    if (update.ex !== 'custom' && !catalog.some(entry => entry.id === update.ex)) throw new Error(`Unknown capability exercise: ${update.ex}`)
-    if (allowedExerciseIds && !allowedExerciseIds.has(update.ex)) throw new Error(`Capability update ${update.ex} is not in the allowed equipment list.`)
+  const capUpdates = parsed.cap_updates.filter(update => {
     const bodyweightUpdate = update.max !== null && update.load === null && update.reps === null
     const loadUpdate = update.max === null && update.load !== null && update.reps !== null
-    if (!bodyweightUpdate && !loadUpdate) throw new Error(`Capability update for ${update.ex} must contain either max or load and reps.`)
+    return bodyweightUpdate || loadUpdate
+  })
+  for (const update of capUpdates) {
+    if (update.ex !== 'custom' && !catalog.some(entry => entry.id === update.ex)) throw new Error(`Unknown capability exercise: ${update.ex}`)
+    if (allowedExerciseIds && !allowedExerciseIds.has(update.ex)) throw new Error(`Capability update ${update.ex} is not in the allowed equipment list.`)
   }
   return {
     ...parsed,
+    cap_updates: capUpdates,
     blocks: parsed.blocks.map(block => ({ ...block, items: block.items.map(item => ({
       ...item, log: Array.from({ length: item.sets }, () => ({ done: false, reps: item.tgt, loadKg: item.load, completedAt: null })), skipped: false,
     })) })),

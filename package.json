@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:live": "RUN_LIVE_WORKOUT_TEST=1 node --env-file=.env.local ./node_modules/vitest/vitest.mjs run tests/live-generation.test.ts --disableConsoleIntercept",
     "test:watch": "vitest",
     "typecheck": "tsc -b --pretty false"
   },

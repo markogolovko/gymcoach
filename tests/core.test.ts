@@ -46,6 +46,11 @@ describe('workout schema validation', () => {
     expect(plan.blocks[0].items[0].log).toHaveLength(3)
     expect(plan.blocks[0].items[0].log[0].done).toBe(false)
   })
+  it('drops malformed optional capability suggestions without rejecting the workout', () => {
+    const plan = validateWorkout({ ...validPlan, cap_updates: [{ ex: 'goblet_squat', max: null, load: null, reps: null }] }, new Set(['pull_up', 'goblet_squat']))
+    expect(plan.cap_updates).toEqual([])
+    expect(plan.blocks[0].items[0].ex).toBe('pull_up')
+  })
   it('rejects IDs outside the equipment-filtered allow list', () => {
     expect(() => validateWorkout(validPlan, new Set(['push_up']))).toThrow(/allowed equipment list/i)
   })
