@@ -58,6 +58,21 @@ export interface WorkoutPlan {
   coach: string
   cap_updates: CapabilityUpdate[]
 }
+export interface TrainingProgramSlot { title: string; focus: string; workout: WorkoutPlan }
+export interface TrainingProgram {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  sessionsPerWeek: number
+  sessionsCompletedThisWeek: number
+  weekOf: string
+  nextSlotIndex: number
+  duration: number
+  focus: string
+  equipment: Equipment[]
+  slots: TrainingProgramSlot[]
+}
 export type SessionStatus = 'planned' | 'active' | 'completed'
 export interface WorkoutSession {
   id: string
@@ -71,8 +86,9 @@ export interface WorkoutSession {
   note: string
   usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } | null
   generationRequest: { duration: number; focus: string; feel: string } | null
+  programRef?: { programId: string; slotIndex: number }
 }
-export interface AppMeta { lastBackupAt: string | null; schemaVersion: number }
+export interface AppMeta { lastBackupAt: string | null; schemaVersion: number; program?: TrainingProgram | null }
 export interface AppSnapshot {
   format: 'ai-gym-coach-backup'
   version: 1

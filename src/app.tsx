@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type Capability, type Equipment, type WeightEntry, type WorkoutItem, type WorkoutSession } from './storage/types'
+import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type Capability, type Equipment, type TrainingProgram, type WeightEntry, type WorkoutItem, type WorkoutSession } from './storage/types'
 import { storage } from './storage/local'
 import { catalog, cueFor, exerciseById, nameFor } from './lib/catalog'
 import exerciseImages from './data/exercise-images.json'
+import { exerciseGuideFor } from './data/exercise-guides.en'
+import { advanceProgram, buildLocalProgram, makeProgramSession, normalizeProgramWeek, refineProgramSlot, slotLabel, weekKey, type LocalProgramInput } from './lib/program'
 import { completionRate, doneSetCount, plannedSetCount, summarizeHistory } from './lib/history'
 import { generateWorkout, CoachError } from './lib/openai'
 import { estimateTokens, makePromptPayload, type GenerateInput } from './lib/prompt'
@@ -60,7 +62,7 @@ export function App() {
   const [capabilities, setCapabilities] = useState<Capability[]>([])
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
-  const [meta, setMeta] = useState<AppMeta>({ lastBackupAt: null, schemaVersion: 1 })
+  const [meta, setMeta] = useState<AppMeta>({ lastBackupAt: null, schemaVersion: 1, program: null })
   const [persistState, setPersistState] = useState<PersistState>('unsupported')
   const [storageEstimate, setStorageEstimate] = useState<{ usage?: number; quota?: number }>({})
   const [iosGuide, setIosGuide] = useState(false)
@@ -165,7 +167,48 @@ export function App() {
   }
 
   const startSession = (id?: string) => commitSession(session => ({ ...session, status: 'active', startedAt: session.startedAt ?? new Date().toISOString() }), id)
-  const finishSession = (id?: string) => commitSession(session => ({ ...session, status: 'completed', finishedAt: new Date().toISOString(), timerEndsAt: null }), id)
+  const finishSession = async (id?: string) => {
+    const source = (id ? sessionsRef.current.find(session => session.id === id) : undefined) ?? sessionsRef.current.find(session => session.status === 'active')
+    if (!source || source.status === 'completed') return
+    try {
+      await commitSession(session => ({ ...session, status: 'completed', finishedAt: new Date().toISOString(), timerEndsAt: null }), source.id)
+      const program = meta.program
+      if (source.programRef && program?.id === source.programRef.programId) {
+        const nextMeta = { ...meta, program: advanceProgram(program, source) }
+        await storage.saveMeta(nextMeta)
+        setMeta(nextMeta)
+      }
+    } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
+  }
+  const createProgram = async (input: LocalProgramInput) => {
+    try {
+      const program = buildLocalProgram(input, capabilities)
+      const session = makeProgramSession(program, newId())
+      const nextMeta = { ...meta, program }
+      await storage.saveMeta(nextMeta)
+      await storage.saveSession(session)
+      const next = [session, ...sessionsRef.current]
+      sessionsRef.current = next; setSessions(next); setMeta(nextMeta); setRunnerId(session.id); setScreen('runner')
+      return true
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : t('settings.dataError'))
+      return false
+    }
+  }
+  const startNextProgramWorkout = async () => {
+    if (!meta.program) return
+    try {
+      const program = normalizeProgramWeek(meta.program)
+      if (program !== meta.program) {
+        await storage.saveMeta({ ...meta, program })
+        setMeta({ ...meta, program })
+      }
+      const session = makeProgramSession(program, newId())
+      await storage.saveSession(session)
+      const next = [session, ...sessionsRef.current]
+      sessionsRef.current = next; setSessions(next); setRunnerId(session.id); setScreen('runner')
+    } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
+  }
   const applyCapabilityUpdates = async (id?: string) => {
     const source = sessionsRef.current.find(session => session.id === id) ?? currentSession
     if (!source) return
@@ -222,8 +265,8 @@ export function App() {
       {iosGuide && <aside class="install-banner"><div><p class="eyebrow">{t('install.title')}</p><p>{t('install.body')}</p><ol><li>{t('install.step1')}</li><li>{t('install.step2')}</li><li>{t('install.step3')}</li></ol></div><button class="icon-button" aria-label={t('install.dismiss')} onClick={() => { setIosGuide(false); void updateSettings({ ...settings, iosInstallDismissed: true }) }}><Icon name="close" /></button></aside>}
       {backupDue && <aside class="backup-banner"><span>{t('install.reminder')}</span><button class="text-button" onClick={() => { navigate('settings'); void exportData(false) }}>{t('install.backupNow')} <Icon name="arrow" /></button></aside>}
 
-      {screen === 'home' && <HomeScreen sessions={sessions} currentSession={currentSession} onGenerate={() => navigate('generate')} onContinue={() => { setRunnerId(currentSession?.id ?? null); navigate('runner') }} />}
-      {screen === 'generate' && <GenerateScreen settings={settings} capabilities={capabilities} sessions={sessions} onPlan={async (input, apiKey) => {
+      {screen === 'home' && <HomeScreen sessions={sessions} currentSession={currentSession} program={meta.program ?? null} onGenerate={() => navigate('generate')} onStartProgram={() => void startNextProgramWorkout()} onContinue={() => { setRunnerId(currentSession?.id ?? null); navigate('runner') }} />}
+      {screen === 'generate' && <GenerateScreen settings={settings} capabilities={capabilities} sessions={sessions} program={meta.program ?? null} onCreateProgram={createProgram} onPlan={async (input, apiKey, refineNext) => {
         try {
           const nextSettings = apiKey === settings.apiKey ? settings : { ...settings, apiKey }
           if (nextSettings !== settings) {
@@ -231,10 +274,22 @@ export function App() {
             setSettings(nextSettings); setSettingsDraft(nextSettings)
           }
           const result = await generateWorkout(input, { ...nextSettings, model: 'gpt-5.4-mini', language: 'en' }, capabilities, sessions)
-          const session: WorkoutSession = { id: newId(), status: 'planned', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null, timerEndsAt: null,
-            workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
+          const sourceProgram = refineNext ? meta.program ?? null : null
+          const slotIndex = sourceProgram ? sourceProgram.nextSlotIndex : -1
+          const program = sourceProgram ? refineProgramSlot(sourceProgram, slotIndex, result.workout) : null
+          const programRef = program ? { programId: program.id, slotIndex } : undefined
+          const existingSlotSession = programRef ? sessionsRef.current.find(session => session.status === 'planned' && session.programRef?.programId === programRef.programId && session.programRef.slotIndex === programRef.slotIndex) : undefined
+          const session: WorkoutSession = existingSlotSession
+            ? { ...existingSlotSession, workout: result.workout, usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
+            : { id: newId(), status: 'planned', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null, timerEndsAt: null,
+              workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel }, ...(programRef ? { programRef } : {}) }
+          if (program) {
+            const nextMeta = { ...meta, program }
+            await storage.saveMeta(nextMeta)
+            setMeta(nextMeta)
+          }
           await storage.saveSession(session)
-          const next = [session, ...sessionsRef.current]
+          const next = existingSlotSession ? sessionsRef.current.map(item => item.id === session.id ? session : item) : [session, ...sessionsRef.current]
           sessionsRef.current = next; setSessions(next); setRunnerId(session.id); setScreen('runner')
           return { ok: true as const, usage: result.usage }
         } catch (error) {
@@ -256,7 +311,7 @@ export function App() {
   </div>
 }
 
-function HomeScreen({ sessions, currentSession, onGenerate, onContinue }: { sessions: WorkoutSession[]; currentSession: WorkoutSession | null; onGenerate: () => void; onContinue: () => void }) {
+function HomeScreen({ sessions, currentSession, program, onGenerate, onStartProgram, onContinue }: { sessions: WorkoutSession[]; currentSession: WorkoutSession | null; program: TrainingProgram | null; onGenerate: () => void; onStartProgram: () => void; onContinue: () => void }) {
   const completed = sessions.filter(session => session.status === 'completed').sort((a, b) => (b.finishedAt ?? b.createdAt).localeCompare(a.finishedAt ?? a.createdAt))
   const last = completed[0]
   const weekStart = Date.now() - 7 * 86400000
@@ -264,7 +319,7 @@ function HomeScreen({ sessions, currentSession, onGenerate, onContinue }: { sess
   const trained = completed.reduce((sum, session) => sum + minutesBetween(session.startedAt, session.finishedAt), 0)
   return <section class="home-screen">
     <div class="hero-grid"><div class="hero-copy"><p class="eyebrow">{t('home.eyebrow')}</p><h1>{t('home.title')}</h1><p class="hero-description">{t('home.description')}</p>
-      {currentSession ? <div class="session-callout"><div class="callout-icon"><Icon name={currentSession.status === 'active' ? 'clock' : 'check'} /></div><div><strong>{currentSession.status === 'active' ? t('home.activeSession') : t('home.planned')}</strong><span>{currentSession.workout.title}</span></div><button class="round-arrow" aria-label={currentSession.status === 'active' ? t('home.continue') : t('home.openPlan')} onClick={onContinue}><Icon name="arrow" /></button></div> : <button class="button button-primary hero-cta" onClick={onGenerate}>{t('home.newWorkout')}<Icon name="arrow" /></button>}
+      {currentSession ? <div class="session-callout"><div class="callout-icon"><Icon name={currentSession.status === 'active' ? 'clock' : 'check'} /></div><div><strong>{currentSession.status === 'active' ? t('home.activeSession') : t('home.planned')}</strong><span>{currentSession.workout.title}</span></div><button class="round-arrow" aria-label={currentSession.status === 'active' ? t('home.continue') : t('home.openPlan')} onClick={onContinue}><Icon name="arrow" /></button></div> : program ? <div class="program-home-card"><p class="eyebrow">{t('program.weeklyPlan')}</p><h2>{program.title}</h2><p>{t('program.sessionsPerWeek', { count: program.sessionsPerWeek })}</p><div class="program-home-progress"><div><span>{t('program.thisWeek')}</span><strong>{formatNumber(program.weekOf === weekKey() ? program.sessionsCompletedThisWeek : 0)}/{formatNumber(program.sessionsPerWeek)}</strong></div><span>{t('program.nextWorkout')} · {slotLabel(program)}</span></div><button class="button button-primary full-width" onClick={onStartProgram}>{t('program.startNext')}<Icon name="arrow" /></button><button class="text-button program-rebuild" onClick={onGenerate}>{t('program.changePlan')}</button></div> : <button class="button button-primary hero-cta" onClick={onGenerate}>{t('home.newWorkout')}<Icon name="arrow" /></button>}
     </div><div class="hero-art" aria-hidden="true"><div class="art-orbit orbit-one" /><div class="art-orbit orbit-two" /><div class="art-disc"><span class="art-line line-one" /><span class="art-line line-two" /><span class="art-center">F</span></div><div class="art-label"><Icon name="spark" /><span>{t('home.ready')}</span></div></div></div>
     <div class="stats-grid"><div class="stat-card stat-feature"><span class="stat-kicker">{t('home.week')}</span><strong>{formatNumber(thisWeek)}<small>{t('home.weekSessions')}</small></strong><div class="stat-bars" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} style={{ height: `${18 + ((thisWeek + i * 7) % 5) * 9}px`, opacity: i < thisWeek ? 1 : .28 }} />)}</div></div><div class="stat-card"><span class="stat-kicker">{t('home.sessions')}</span><strong>{formatNumber(completed.length)}</strong><span class="stat-foot">{t('home.consistency')}</span></div><div class="stat-card"><span class="stat-kicker">{t('home.minutesTrained')}</span><strong>{formatNumber(trained)}<small>{t('app.minutes')}</small></strong><span class="stat-foot">{last ? `${t('home.lastSession')} · ${formatDate(last.finishedAt)}` : t('home.noSessions')}</span></div></div>
     {!currentSession && <section class="quote-card"><span class="quote-orb" aria-hidden="true">✳</span><p>{t('home.trainingNote')}</p><span class="quote-mark">{t('home.quoteMark')}</span></section>}
@@ -272,16 +327,19 @@ function HomeScreen({ sessions, currentSession, onGenerate, onContinue }: { sess
   </section>
 }
 
-function GenerateScreen({ settings, capabilities, sessions, onPlan }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; onPlan: (input: GenerateInput, apiKey: string) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }>; }) {
+function GenerateScreen({ settings, capabilities, sessions, program, onPlan, onCreateProgram }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; program: TrainingProgram | null; onPlan: (input: GenerateInput, apiKey: string, refineNext: boolean) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }>; onCreateProgram: (input: LocalProgramInput) => Promise<boolean> }) {
   const [duration, setDuration] = useState(60)
+  const [sessionsPerWeek, setSessionsPerWeek] = useState(3)
   const [focus, setFocus] = useState('')
   const [feel, setFeel] = useState('')
   const [equipment, setEquipment] = useState(settings.equipment)
   const [preset, setPreset] = useState(settings.equipmentPreset)
   const [pending, setPending] = useState(false)
+  const [programPending, setProgramPending] = useState(false)
   const [error, setError] = useState('')
   const [apiKey, setApiKey] = useState(settings.apiKey)
   const [showKey, setShowKey] = useState(false)
+  const [refineNext, setRefineNext] = useState(false)
   const [usage, setUsage] = useState<{ promptTokens: number; completionTokens: number } | null>(null)
   const estimatedTokens = useMemo(() => estimateTokens(makePromptPayload({ duration, focus, feel, equipment }, settings, capabilities, sessions).payload), [duration, focus, feel, equipment, settings, capabilities, sessions])
 
@@ -290,10 +348,16 @@ function GenerateScreen({ settings, capabilities, sessions, onPlan }: { settings
     event.preventDefault(); setError(''); setUsage(null)
     if (!apiKey.trim()) { setError('key'); return }
     setPending(true)
-    const result = await onPlan({ duration, focus, feel, equipment }, apiKey.trim())
+    const result = await onPlan({ duration, focus, feel, equipment }, apiKey.trim(), refineNext && Boolean(program))
     setPending(false)
     if (result.ok) setUsage(result.usage)
     else setError(result.kind === 'invalid' || result.kind === 'generic' ? result.message : result.kind)
+  }
+  const createOfflineProgram = async () => {
+    setError('')
+    setProgramPending(true)
+    await onCreateProgram({ duration, focus, feel, equipment, sessionsPerWeek })
+    setProgramPending(false)
   }
   return <section class="builder-screen"><header class="section-intro"><p class="eyebrow">{t('generator.eyebrow')}</p><h1>{t('generator.title')}</h1><p>{t('generator.description')}</p></header>
     <form class="builder-card" onSubmit={submit}>
@@ -301,12 +365,16 @@ function GenerateScreen({ settings, capabilities, sessions, onPlan }: { settings
       <div class="form-row"><label class="form-group"><span>{t('generator.focus')}</span><input class="text-input" value={focus} maxlength={120} placeholder={t('generator.focusPlaceholder')} onInput={event => setFocus((event.currentTarget as HTMLInputElement).value)} /></label><label class="form-group"><span>{t('generator.feel')}</span><input class="text-input" value={feel} maxlength={160} placeholder={t('generator.feelPlaceholder')} onInput={event => setFeel((event.currentTarget as HTMLInputElement).value)} /></label></div>
       <div class="form-group"><label for="gen-preset">{t('settings.preset')}</label><select class="text-input" id="gen-preset" value={preset} onChange={event => changePreset((event.currentTarget as HTMLSelectElement).value)}><option value="park">{t('generator.presetPark')}</option><option value="gym">{t('generator.presetGym')}</option><option value="home">{t('generator.presetHome')}</option><option value="custom">{t('generator.presetCustom')}</option></select></div>
       <fieldset class="equipment-grid"><legend>{t('generator.equipment')}</legend>{equipmentKeys.map(key => <label class="check-chip" key={key}><input type="checkbox" checked={equipment.includes(key)} onChange={event => { setPreset('custom'); setEquipment(value => event.currentTarget.checked ? [...new Set([...value, key])] : value.filter(x => x !== key)) }} /><span class="check-mark"><Icon name="check" /></span>{t(`equipment.${key}` as TranslationKey)}</label>)}</fieldset>
-      <div class="token-estimate"><span><Icon name="spark" />{t('generator.tokenEstimate')}</span><strong>{t('generator.estimatedTokens', { count: estimatedTokens })}</strong></div>
-      {(!settings.apiKey || error === 'key') && <div class="settings-card generator-key-card"><p class="eyebrow">{t('generator.keyTitle')}</p><p class="card-description">{error === 'key' ? t('generator.errorKey') : t('generator.apiKeyMissing')}</p><label class="form-group"><span>{t('settings.apiKey')}</span><div class="input-with-action"><input class="text-input" type={showKey ? 'text' : 'password'} autocomplete="off" spellcheck={false} value={apiKey} placeholder={t('settings.apiKeyPlaceholder')} onInput={event => setApiKey((event.currentTarget as HTMLInputElement).value)} /><button class="show-key" type="button" onClick={() => setShowKey(!showKey)}>{showKey ? t('settings.hideKey') : t('settings.showKey')}</button></div><small class="field-hint">{t('settings.apiKeyHelp')}</small></label></div>}
-      {error && error !== 'key' && <p class="form-error" role="alert">{error === 'rate' ? t('generator.errorRate') : error === 'network' ? t('generator.errorNetwork') : error}</p>}
-      <button class="button button-primary full-width builder-submit" type="submit" disabled={pending || !equipment.length || !apiKey.trim()}>{pending ? <><span class="spinner" />{t('generator.building')}</> : <>{!settings.apiKey ? t('generator.saveKeyBuild') : t('generator.build')}<Icon name="arrow" /></>}</button>
-      {usage && <p class="usage-note">{t('generator.usage', { prompt: usage.promptTokens, completion: usage.completionTokens })}</p>}
-      <p class="privacy-line">{t('app.notice')}</p>
+      <div class="offline-program-builder"><div><p class="eyebrow">{t('program.offlineEyebrow')}</p><h2>{t('program.offlineTitle')}</h2><p>{t('program.offlineBody')}</p></div><label class="form-group"><span>{t('program.sessionsPerWeekLabel')}</span><select class="text-input" value={sessionsPerWeek} onChange={event => setSessionsPerWeek(Number((event.currentTarget as HTMLSelectElement).value))}>{[2, 3, 4, 5, 6].map(count => <option key={count} value={count}>{t('program.sessionsPerWeek', { count })}</option>)}</select></label><button class="button button-primary full-width" type="button" disabled={programPending || pending || !equipment.length} onClick={() => void createOfflineProgram()}>{programPending ? <><span class="spinner" />{t('program.building')}</> : <>{t('program.createOffline')}<Icon name="arrow" /></>}</button><p class="privacy-line">{t('program.offlineNote')}</p></div>
+      <details class="ai-option"><summary>{t('program.aiOptional')}</summary><p class="card-description">{t('program.aiOptionalBody')}</p>
+        {program && <label class="check-chip ai-refine-choice"><input type="checkbox" checked={refineNext} onChange={event => setRefineNext(event.currentTarget.checked)} /><span class="check-mark"><Icon name="check" /></span>{t('program.refineNext')}</label>}
+        <div class="token-estimate"><span><Icon name="spark" />{t('generator.tokenEstimate')}</span><strong>{t('generator.estimatedTokens', { count: estimatedTokens })}</strong></div>
+        {(!settings.apiKey || error === 'key') && <div class="settings-card generator-key-card"><p class="eyebrow">{t('generator.keyTitle')}</p><p class="card-description">{error === 'key' ? t('generator.errorKey') : t('generator.apiKeyMissing')}</p><label class="form-group"><span>{t('settings.apiKey')}</span><div class="input-with-action"><input class="text-input" type={showKey ? 'text' : 'password'} autocomplete="off" spellcheck={false} value={apiKey} placeholder={t('settings.apiKeyPlaceholder')} onInput={event => setApiKey((event.currentTarget as HTMLInputElement).value)} /><button class="show-key" type="button" onClick={() => setShowKey(!showKey)}>{showKey ? t('settings.hideKey') : t('settings.showKey')}</button></div><small class="field-hint">{t('settings.apiKeyHelp')}</small></label></div>}
+        {error && error !== 'key' && <p class="form-error" role="alert">{error === 'rate' ? t('generator.errorRate') : error === 'network' ? t('generator.errorNetwork') : error}</p>}
+        <button class="button button-secondary full-width builder-submit" type="submit" disabled={pending || programPending || !equipment.length || !apiKey.trim()}>{pending ? <><span class="spinner" />{t('generator.building')}</> : <>{refineNext && program ? t('program.refineNextButton') : t('program.aiOneOff')}<Icon name="arrow" /></>}</button>
+        {usage && <p class="usage-note">{t('generator.usage', { prompt: usage.promptTokens, completion: usage.completionTokens })}</p>}
+        <p class="privacy-line">{t('app.notice')}</p>
+      </details>
     </form>
   </section>
 }
@@ -318,6 +386,8 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   const [now, setNow] = useState(Date.now())
   const [finishing, setFinishing] = useState(false)
   const [swapping, setSwapping] = useState<string | null>(null)
+  const [exerciseDetail, setExerciseDetail] = useState<{ id: string; name: string; note: string | null } | null>(null)
+  const planScrollY = useRef(0)
   const lockRef = useRef<{ release: () => Promise<void> } | null>(null)
   const beepedRef = useRef<string | null>(null)
   useEffect(() => { const interval = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(interval) }, [])
@@ -361,18 +431,59 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     const item = session.workout.blocks[blockIndex].items[itemIndex]
     const entry = item.log[setIndex]
     const nextDone = !entry.done
+    const completedAt = new Date().toISOString()
     const timer = nextDone && item.rest > 0 ? Date.now() + item.rest * 1000 : null
-    byId(blockIndex, itemIndex, value => ({ ...value, log: value.log.map((set, index) => index === setIndex ? { ...set, done: nextDone, completedAt: nextDone ? new Date().toISOString() : null } : set) }), timer)
+    mutate(current => ({
+      ...current,
+      status: current.status === 'planned' ? 'active' : current.status,
+      startedAt: current.status === 'planned' ? completedAt : current.startedAt,
+      timerEndsAt: timer,
+      workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== blockIndex ? block : ({
+        ...block, items: block.items.map((value, ii) => ii !== itemIndex ? value : ({
+          ...value, log: value.log.map((set, index) => index === setIndex ? { ...set, done: nextDone, completedAt: nextDone ? completedAt : null } : set),
+        })),
+      })) },
+    }), session.id)
   }
   const skipRest = () => mutate(current => ({ ...current, timerEndsAt: null }), session.id)
   const adjustTimer = (delta: number) => mutate(current => ({ ...current, timerEndsAt: adjustEndTime(current.timerEndsAt, delta) }), session.id)
+  const openExerciseGuide = (id: string, name: string, note: string | null) => {
+    planScrollY.current = window.scrollY
+    setExerciseDetail({ id, name, note })
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }
+  const returnToPlan = () => {
+    setExerciseDetail(null)
+    requestAnimationFrame(() => window.scrollTo({ top: planScrollY.current, behavior: 'auto' }))
+  }
+
+  if (exerciseDetail) {
+    const exercise = exerciseById.get(exerciseDetail.id)
+    const guide = exerciseGuideFor(exerciseDetail.id)
+    const frames = exerciseImages[exerciseDetail.id as keyof typeof exerciseImages]?.frames ?? []
+    const fallbackSteps = [t('runner.customGuideSetup'), t('runner.customGuideControl'), t('runner.guideSafety')]
+    return <section class="exercise-detail-screen">
+      <button class="back-link" onClick={returnToPlan}><span>←</span>{t('runner.backToPlan')}</button>
+      <p class="eyebrow">{t('runner.exerciseGuide')}</p>
+      <h1>{exerciseDetail.name}</h1>
+      <p class="exercise-guide-summary">{guide?.summary ?? (cueFor(exerciseDetail.id) || t('runner.customGuideSummary'))}</p>
+      {frames.length > 0 && <div class="exercise-guide-demo">{frames.map((src, index) => <figure key={src}><img src={src} alt={`${exerciseDetail.name} — ${t(index === 0 ? 'runner.demoStart' : index === frames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}`} /><figcaption>{t(index === 0 ? 'runner.demoStart' : index === frames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}</figcaption></figure>)}</div>}
+      {exercise && <div class="exercise-guide-facts"><div><span>{t('runner.guideMuscles')}</span><strong>{exercise.muscles.map(muscle => muscle.replaceAll('_', ' ')).join(', ')}</strong></div><div><span>{t('runner.guideEquipment')}</span><strong>{exercise.equipment.map(tag => tag.replaceAll('_', ' ')).join(', ')}</strong></div></div>}
+      <section class="exercise-guide-steps"><h2>{t('runner.guideSteps')}</h2><ol>{(guide?.steps ?? fallbackSteps).map((step, index) => <li key={index}><span>{formatNumber(index + 1)}</span><p>{step}</p></li>)}</ol></section>
+      {guide && <aside class="exercise-guide-focus"><span>{t('runner.guideFocus')}</span><p>{guide.focus}</p></aside>}
+      {exerciseDetail.note && <aside class="exercise-guide-focus"><span>{t('runner.coachNote')}</span><p>{exerciseDetail.note}</p></aside>}
+      <p class="exercise-guide-safety">{t('runner.guideSafety')}</p>
+      <button class="button button-primary full-width runner-bottom-button" onClick={returnToPlan}>{t('runner.backToPlan')}<Icon name="arrow" /></button>
+      {session.status === 'active' && session.timerEndsAt !== null && <div class="rest-dock" role="timer" aria-label={`${t('runner.timer')} ${formatTimer(timerLeft, currentLanguage())}`}><div class="rest-label"><span class="timer-pulse" /><span>{timerLeft === 0 ? t('runner.timerDone') : t('runner.timer')}</span></div><strong class="timer-value">{formatTimer(timerLeft, currentLanguage())}</strong><div class="timer-controls"><button aria-label={t('runner.minus15')} onClick={() => adjustTimer(-15)}><Icon name="minus" /><span>15</span></button><button aria-label={t('runner.add15')} onClick={() => adjustTimer(15)}><Icon name="plus" /><span>15</span></button><button class="timer-skip" onClick={skipRest}>{t('runner.skipRest')}</button></div></div>}
+    </section>
+  }
 
   if (session.status === 'completed') return <section class="finish-summary-screen"><div class="success-emblem"><Icon name="check" /></div><p class="eyebrow">{t('runner.finishTitle')}</p><h1>{session.workout.title}</h1><p class="summary-lede">{t('runner.finishBody')}</p><div class="finish-stats"><div><strong>{completionRate(session)}%</strong><span>{t('runner.completion')}</span></div><div><strong>{elapsed} <small>{t('app.minutes')}</small></strong><span>{t('history.totalTime')}</span></div><div><strong>{session.rpe ?? '—'}/10</strong><span>{t('history.rpe')}</span></div></div>{session.note && <blockquote class="finish-note">“{session.note}”</blockquote>}<button class="button button-secondary full-width" onClick={onHome}>{t('app.today')}<Icon name="arrow" /></button></section>
 
   return <section class="runner-screen">
     <header class="runner-head"><div><p class="eyebrow">{session.status === 'active' ? t('runner.eyebrow') : t('history.planned')}</p><h1>{session.workout.title}</h1></div><div class="runner-head-time"><strong>{elapsed}</strong><span>{t('app.minutes')}</span></div></header>
+    {session.status === 'planned' && <div class="runner-start-panel"><p>{t('runner.plannedNotice')}</p><button class="button button-primary" onClick={() => void onStart(session.id)}>{t('runner.start')}<Icon name="arrow" /></button></div>}
     <div class="runner-progress"><div class="progress-label"><span>{t('runner.progress')}</span><strong>{formatNumber(progress)}%</strong></div><div class="progress-track"><i style={{ width: `${progress}%` }} /></div><div class="progress-meta"><span>{formatNumber(done)}/{formatNumber(planned)} {t('runner.setsDone')}</span>{session.status === 'active' && <span>{t('runner.elapsed')} · {formatNumber(elapsed)} {t('app.minutes')}</span>}</div></div>
-    {session.status === 'planned' && <div class="planned-banner"><span><Icon name="check" /></span><p>{t('runner.plannedNotice')}</p></div>}
     <div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{session.workout.coach}</strong></div></div>
     {session.usage && <p class="actual-usage">{t('generator.usage', { prompt: session.usage.promptTokens, completion: session.usage.completionTokens })}</p>}
       <div class="workout-blocks">{session.workout.blocks.map((block, bi) => <section class="workout-block" key={`${session.id}-${bi}`}><header class="block-heading"><span class="block-index">{String(bi + 1).padStart(2, '0')}</span><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2></header>
@@ -385,19 +496,18 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
         const availableEquipment = new Set(['bodyweight', ...settings.equipment])
         const replacements = [...(exercise?.regressions ?? []), ...(exercise?.progressions ?? [])].filter(id => exerciseById.get(id)?.equipment.every(tag => availableEquipment.has(tag)))
         return <article class={`exercise-card ${item.skipped ? 'exercise-skipped' : ''}`} key={`${key}-${item.ex}`}>
-          <div class="exercise-title-row"><div><h3>{exerciseLabel}</h3><p>{text.cue || cueFor(item.ex)}</p>{item.skipped && <span class="skipped-badge">{t('runner.skipped')}</span>}</div><div class="exercise-meta"><strong>{formatNumber(item.sets)} × {formatNumber(item.tgt)}{item.u === 'r' ? ` ${t('app.reps')}` : ` ${t('app.seconds')}`}</strong>{item.load !== null && <span>{formatLoad(item.load, settings.units)} {settings.units}</span>}</div></div>
+          <div class="exercise-title-row"><div><h3><button class="exercise-title-link" onClick={() => openExerciseGuide(item.ex, exerciseLabel, item.note)} aria-label={`${exerciseLabel}: ${t('runner.viewGuide')}`}><span>{exerciseLabel}</span><Icon name="arrow" /></button></h3><p>{text.cue || cueFor(item.ex)}</p><button class="exercise-guide-link" onClick={() => openExerciseGuide(item.ex, exerciseLabel, item.note)}>{t('runner.viewGuide')}</button>{item.skipped && <span class="skipped-badge">{t('runner.skipped')}</span>}</div><div class="exercise-meta"><strong>{formatNumber(item.sets)} × {formatNumber(item.tgt)}{item.u === 'r' ? ` ${t('app.reps')}` : ` ${t('app.seconds')}`}</strong>{item.load !== null && <span>{formatLoad(item.load, settings.units)} {settings.units}</span>}</div></div>
           {demoFrames.length > 0 && <div class="exercise-demo">{demoFrames.map((src, frameIndex) => <figure key={src}><img src={src} alt={`${exerciseLabel} — ${t(frameIndex === 0 ? 'runner.demoStart' : frameIndex === demoFrames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}`} loading="lazy" decoding="async" /><figcaption>{t(frameIndex === 0 ? 'runner.demoStart' : frameIndex === demoFrames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}</figcaption></figure>)}</div>}
           {item.note && <p class="exercise-note">{item.note}</p>}
           {!item.skipped && <div class="set-list">{item.log.map((set, si) => <div class={`set-row ${set.done ? 'set-done' : ''}`} key={si}><div class="set-number">{new Intl.NumberFormat(currentLanguage(), { minimumIntegerDigits: 2, useGrouping: false }).format(si + 1)}</div><div class="set-target">{t('app.setCount', { count: si + 1 })}<span>{formatNumber(set.reps)} {item.u === 'r' ? t('app.reps') : t('app.seconds')}</span></div>
             <div class="set-steppers"><div class="stepper" aria-label={t('runner.adjustReps')}><button aria-label={`${t('runner.adjustReps')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: Math.max(0, set.reps - (item.u === 's' ? 5 : 1)) })}><Icon name="minus" /></button><strong>{set.reps}</strong><button aria-label={`${t('runner.adjustReps')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: set.reps + (item.u === 's' ? 5 : 1) })}><Icon name="plus" /></button></div>
               {exercise?.loadable && <div class="stepper load-stepper" aria-label={t('runner.adjustLoad')}><button aria-label={`${t('runner.adjustLoad')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { loadKg: Math.max(0, (set.loadKg ?? 0) - toKg(settings.units === 'lb' ? 5 : 2.5, settings.units)) })}><Icon name="minus" /></button><strong>{formatLoad(set.loadKg, settings.units)}<small>{settings.units}</small></strong><button aria-label={`${t('runner.adjustLoad')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { loadKg: (set.loadKg ?? 0) + toKg(settings.units === 'lb' ? 5 : 2.5, settings.units) })}><Icon name="plus" /></button></div>}
-            </div><button class={`complete-set ${set.done ? 'is-done' : ''}`} disabled={session.status !== 'active'} aria-pressed={set.done} aria-label={`${exerciseLabel}, ${t('app.setCount', { count: si + 1 })}, ${t(set.done ? 'runner.completed' : 'runner.markDone')}`} onClick={() => toggleSet(bi, ii, si)}>{set.done ? <Icon name="check" /> : <span />}</button></div>)}</div>}
+            </div><button class={`complete-set ${set.done ? 'is-done' : ''}`} aria-pressed={set.done} aria-label={`${exerciseLabel}, ${t('app.setCount', { count: si + 1 })}, ${t(set.done ? 'runner.completed' : 'runner.markDone')}`} onClick={() => toggleSet(bi, ii, si)}>{set.done ? <Icon name="check" /> : <span />}</button></div>)}</div>}
           {session.status === 'active' && <div class="exercise-actions"><button class="quiet-action" onClick={() => setSwapping(swapping === key ? null : key)} disabled={item.skipped || item.log.some(set => set.done) || replacements.length === 0}>{t('runner.swap')}</button><button class="quiet-action quiet-skip" onClick={() => byId(bi, ii, value => ({ ...value, skipped: true }))} disabled={item.skipped}>{t(item.skipped ? 'runner.skipped' : 'runner.skipExercise')}</button></div>}
           {swapping === key && replacements.length > 0 && <div class="swap-panel"><p>{t('runner.swapHint')}</p>{replacements.map(id => <button key={id} class="swap-choice" onClick={() => { const target = exerciseById.get(id); if (!target) return; byId(bi, ii, value => ({ ...value, ex: id, name: null, u: target.type === 'time' ? 's' : 'r', load: null, tgt: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, log: Array.from({ length: value.sets }, () => ({ done: false, reps: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, loadKg: null, completedAt: null })), skipped: false })); setSwapping(null) }}>{nameFor(id)}<Icon name="arrow" /></button>)}</div>}
         </article>
       })}
     </section>)}</div>
-    {session.status === 'planned' && <button class="button button-primary full-width runner-bottom-button" onClick={() => void onStart(session.id)}>{t('runner.start')}<Icon name="arrow" /></button>}
     {session.status === 'active' && !finishing && <button class="button button-secondary full-width runner-bottom-button" onClick={() => { setFinishing(true); if (session.timerEndsAt !== null) void mutate(current => ({ ...current, timerEndsAt: null }), session.id) }}>{t('runner.finish')}<Icon name="check" /></button>}
     {session.status === 'active' && finishing && <div class="finish-form-card"><p class="eyebrow">{t('runner.finishTitle')}</p><h2>{t('runner.finishBody')}</h2><div class="finish-stats compact"><div><strong>{formatNumber(completionRate(session))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(elapsed)} {t('app.minutes')}</strong><span>{t('history.totalTime')}</span></div></div><div class="form-group"><span>{t('runner.rpe')}</span><div class="rpe-labels"><small>{t('runner.rpeLow')}</small><small>{t('runner.rpeHigh')}</small></div><div class="rpe-scale">{Array.from({ length: 10 }, (_, i) => i + 1).map(value => <button type="button" class={session.rpe === value ? 'selected' : ''} aria-label={`${t('runner.rpe')} ${formatNumber(value)}`} aria-pressed={session.rpe === value} onClick={() => mutate(current => ({ ...current, rpe: value }), session.id)}>{formatNumber(value)}</button>)}</div></div><label class="form-group"><span>{t('runner.sessionNote')}</span><textarea class="text-input textarea" value={session.note} maxlength={600} placeholder={t('runner.notePlaceholder')} onInput={event => mutate(current => ({ ...current, note: (event.currentTarget as HTMLTextAreaElement).value }), session.id)} /></label>
       {session.workout.cap_updates.length > 0 && <div class="suggestion-box"><p>{t('runner.capSuggestion')}</p>{session.workout.cap_updates.map(update => <span key={update.ex}>{nameFor(update.ex)} · {update.max !== null ? `${update.max} ${t('app.reps')}` : `${formatLoad(update.load, settings.units)} ${settings.units} × ${update.reps}`}</span>)}<button class="text-button" onClick={() => void onApplyUpdates(session.id)}>{t('runner.applySuggestions')}<Icon name="arrow" /></button></div>}

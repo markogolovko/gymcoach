@@ -51,7 +51,7 @@ async function run<T>(label: string, action: (db: IDBPDatabase<GymDB>) => Promis
   }
 }
 
-const defaultMeta: AppMeta = { lastBackupAt: null, schemaVersion: DB_VERSION }
+const defaultMeta: AppMeta = { lastBackupAt: null, schemaVersion: DB_VERSION, program: null }
 
 export class LocalAdapter implements Storage {
   getSettings() {
@@ -81,7 +81,10 @@ export class LocalAdapter implements Storage {
   getSession(id: string) { return run('Load session', db => db.get('sessions', id)) }
   saveSession(value: WorkoutSession) { return run('Save workout', db => db.put('sessions', value)).then(() => undefined) }
   getMeta() {
-    return run('Load app data', async db => (await db.get('meta', 'app')) ?? defaultMeta)
+    return run('Load app data', async db => {
+      const meta = await db.get('meta', 'app')
+      return { ...defaultMeta, ...(meta ?? {}) }
+    })
   }
   saveMeta(value: AppMeta) { return run('Save app data', db => db.put('meta', value, 'app')).then(() => undefined) }
   exportSnapshot(includeApiKey = false) {
@@ -111,7 +114,7 @@ export class LocalAdapter implements Storage {
         ...snapshot.capabilities.map(value => tx.objectStore('capabilities').put(value)),
         ...snapshot.weights.map(value => tx.objectStore('weights').put(value)),
         ...snapshot.sessions.map(value => tx.objectStore('sessions').put(value)),
-        tx.objectStore('meta').put({ ...snapshot.meta, lastBackupAt: new Date().toISOString(), schemaVersion: DB_VERSION }, 'app'),
+        tx.objectStore('meta').put({ ...defaultMeta, ...snapshot.meta, lastBackupAt: new Date().toISOString(), schemaVersion: DB_VERSION }, 'app'),
       ])
       await tx.done
     })
