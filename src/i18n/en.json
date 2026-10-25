@@ -139,6 +139,7 @@
     "finishConfirm": "Finish and save this session?",
     "rpeSaved": "Session saved to your history.",
     "plannedNotice": "Your workout is ready. Start here, or tap any set below to begin.",
+    "loadGuidance": "Suggested loads are starting estimates. Adjust them to suit your strength.",
     "capSuggestion": "COACH SUGGESTION",
     "applySuggestions": "Update my capabilities",
     "suggestionsApplied": "Your capability was updated.",
@@ -149,6 +150,7 @@
     "offlineTitle": "Build a weekly plan",
     "offlineBody": "Create a routine from the exercise library. It stays on this device and works without an internet connection.",
     "sessionsPerWeekLabel": "How many sessions per week?",
+    "sessionsPerWeekHelp": "Choose 1 to 7 sessions per week.",
     "sessionsPerWeek": {
       "one": "{{count}} session per week",
       "other": "{{count}} sessions per week"
@@ -188,12 +190,16 @@
     "weightTrend": "Body weight",
     "rpe": "Effort",
     "sessionNote": "Your note",
-    "totalTime": "Total time"
+    "totalTime": "Total time",
+    "removeWorkout": "Remove workout",
+    "removeConfirm": "Remove this workout from your history?",
+    "removed": "Workout removed"
   },
   "settings": {
     "eyebrow": "YOUR PREFERENCES",
     "title": "Make it\nyours.",
     "description": "Your coach works best when it knows your setup.",
+    "autoSave": "Changes save automatically on this device.",
     "accountTitle": "AI COACH",
     "apiAccessTitle": "OpenAI access",
     "apiKey": "OpenAI API key",
@@ -220,7 +226,7 @@
     "stylePlaceholder": "I enjoy steady progress, short rests, and a mix of strength and mobility…",
     "styleHelp": "A few words help the coach choose a style that feels like yours.",
     "capabilitiesTitle": "YOUR CAPABILITIES",
-    "capabilitiesDescription": "Add a movement and your current best. This guides your coach’s starting point.",
+    "capabilitiesDescription": "Track a few familiar movements, such as push-ups and pull-ups. Your coach can start conservatively for the rest.",
     "addCapability": "Add movement",
     "noCapabilities": "No movements added yet. You can still build a plan; the coach will start conservatively.",
     "maxReps": "Best reps / seconds",

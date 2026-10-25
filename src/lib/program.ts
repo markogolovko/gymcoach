@@ -1,4 +1,4 @@
-import { catalog, exerciseById, filterCatalog, nameFor } from './catalog'
+import { catalog, exerciseById, filterCatalog, nameFor, starterLoadKg } from './catalog'
 import type { Capability, Equipment, ExercisePattern, TrainingProgram, WorkoutItem, WorkoutPlan, WorkoutSession } from '../storage/types'
 
 export interface LocalProgramInput {
@@ -56,8 +56,8 @@ function freshItem(item: WorkoutItem): WorkoutItem {
   }
 }
 
-export function buildLocalProgram(input: LocalProgramInput, capabilities: Capability[]): TrainingProgram {
-  const sessionsPerWeek = Math.min(6, Math.max(2, Math.round(input.sessionsPerWeek)))
+export function buildLocalProgram(input: LocalProgramInput, capabilities: Capability[], bodyWeightKg: number | null = null): TrainingProgram {
+  const sessionsPerWeek = Math.min(7, Math.max(1, Math.round(input.sessionsPerWeek)))
   const highestLevel = Math.max(0, ...capabilities.map(capability => exerciseById.get(capability.exerciseId)?.level ?? 0))
   const maxLevel = highestLevel ? Math.min(5, highestLevel + 1) : 2
   const available = filterCatalog(input.equipment, maxLevel)
@@ -98,10 +98,13 @@ export function buildLocalProgram(input: LocalProgramInput, capabilities: Capabi
     const items = selected.map(({ exercise }) => {
       const capability = capabilities.find(value => value.exerciseId === exercise.id)
       const target = exercise.type === 'time' ? 30 : Math.max(6, Math.min(10, capability?.max ? Math.round(capability.max * .65) : 8))
+      const load = exercise.loadable
+        ? capability?.loadKg && capability.loadKg > 0 ? capability.loadKg : starterLoadKg(exercise.id, bodyWeightKg)
+        : null
       return freshItem({
         ex: exercise.id, name: null, sets: baseSets, tgt: target,
         u: exercise.type === 'time' ? 's' : 'r',
-        load: exercise.loadable ? capability?.loadKg ?? null : null,
+        load,
         rest: exercise.type === 'time' ? 45 : 75, note: null, log: [], skipped: false,
       })
     })

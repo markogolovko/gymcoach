@@ -12,7 +12,7 @@ const planSchema = z.object({
 })
 const programSchema = z.object({
   id: z.string(), title: z.string(), createdAt: z.string(), updatedAt: z.string(),
-  sessionsPerWeek: z.number().int().min(2).max(6), sessionsCompletedThisWeek: z.number().int().min(0).max(1000),
+  sessionsPerWeek: z.number().int().min(1).max(7), sessionsCompletedThisWeek: z.number().int().min(0).max(1000),
   weekOf: z.string(), nextSlotIndex: z.number().int().min(0), duration: z.number().int().min(20).max(180), focus: z.string(),
   equipment: z.array(z.string()), slots: z.array(z.object({ title: z.string(), focus: z.string(), workout: planSchema })).min(1).max(6),
 })

@@ -80,6 +80,7 @@ export class LocalAdapter implements Storage {
   listSessions() { return run('Load sessions', db => db.getAllFromIndex('sessions', 'by-created')) }
   getSession(id: string) { return run('Load session', db => db.get('sessions', id)) }
   saveSession(value: WorkoutSession) { return run('Save workout', db => db.put('sessions', value)).then(() => undefined) }
+  deleteSession(id: string) { return run('Remove workout', db => db.delete('sessions', id)).then(() => undefined) }
   getMeta() {
     return run('Load app data', async db => {
       const meta = await db.get('meta', 'app')

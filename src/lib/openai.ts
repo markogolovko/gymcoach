@@ -1,5 +1,5 @@
 import type { AppSettings, Capability, WorkoutPlan, WorkoutSession } from '../storage/types'
-import { exerciseById } from './catalog'
+import { exerciseById, starterLoadKg } from './catalog'
 import { makePromptPayload, estimateTokens, SYSTEM_PROMPT, type GenerateInput } from './prompt'
 import { validateWorkout, validationMessage, workoutJsonSchema } from './workout-schema'
 
@@ -65,9 +65,9 @@ export async function generateWorkout(input: GenerateInput, settings: AppSetting
       const workout = validateWorkout(output, allowedIds)
       for (const block of workout.blocks) for (const item of block.items) {
         const capability = capabilities.find(value => value.exerciseId === item.ex)
-        if (item.load === null && capability?.loadKg !== null && capability?.loadKg !== undefined && exerciseById.get(item.ex)?.loadable) {
-          item.load = capability.loadKg
-          item.log = item.log.map(set => ({ ...set, loadKg: capability.loadKg }))
+        if ((item.load === null || item.load === 0) && exerciseById.get(item.ex)?.loadable) {
+          item.load = capability?.loadKg && capability.loadKg > 0 ? capability.loadKg : starterLoadKg(item.ex, settings.profile.weightKg)
+          item.log = item.log.map(set => ({ ...set, loadKg: item.load }))
         }
       }
       return {

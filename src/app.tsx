@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type Capability, type Equipment, type TrainingProgram, type WeightEntry, type WorkoutItem, type WorkoutSession } from './storage/types'
 import { storage } from './storage/local'
-import { catalog, cueFor, exerciseById, nameFor } from './lib/catalog'
+import { catalog, cueFor, exerciseById, nameFor, starterLoadKg } from './lib/catalog'
 import exerciseImages from './data/exercise-images.json'
 import { exerciseGuideFor } from './data/exercise-guides.en'
 import { advanceProgram, buildLocalProgram, makeProgramSession, normalizeProgramWeek, refineProgramSlot, slotLabel, weekKey, type LocalProgramInput } from './lib/program'
@@ -20,6 +20,7 @@ const presets: Record<string, Equipment[]> = {
   gym: equipmentKeys,
   home: ['bodyweight', 'dumbbells', 'bands', 'bench'],
 }
+const commonCapabilityIds = ['push_up', 'pull_up', 'bodyweight_squat', 'plank', 'barbell_bench_press', 'deadlift']
 
 function newId() { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}` }
 function formatNumber(value: number, maximumFractionDigits = 0) { return new Intl.NumberFormat(currentLanguage(), { maximumFractionDigits }).format(value) }
@@ -33,12 +34,27 @@ function formatLoad(kg: number | null, units: 'kg' | 'lb') {
   return new Intl.NumberFormat(currentLanguage(), { maximumFractionDigits: 1 }).format(value)
 }
 function toKg(value: number, units: 'kg' | 'lb') { return units === 'lb' ? value / 2.20462 : value }
+function fillStarterLoads(session: WorkoutSession, bodyWeightKg: number | null, capabilities: Capability[]): WorkoutSession {
+  if (session.status === 'completed') return session
+  let changed = false
+  const blocks = session.workout.blocks.map(block => ({
+    ...block,
+    items: block.items.map(item => {
+      if ((item.load !== null && item.load > 0) || !exerciseById.get(item.ex)?.loadable) return item
+      const capabilityLoad = capabilities.find(capability => capability.exerciseId === item.ex)?.loadKg
+      const load = capabilityLoad && capabilityLoad > 0 ? capabilityLoad : starterLoadKg(item.ex, bodyWeightKg)
+      changed = true
+      return { ...item, load, log: item.log.map(set => ({ ...set, loadKg: set.loadKg === null || (!set.done && set.loadKg === 0) ? load : set.loadKg })) }
+    }),
+  }))
+  return changed ? { ...session, workout: { ...session.workout, blocks } } : session
+}
 function minutesBetween(start: string | null, end: string | null) {
   if (!start) return 0
   return Math.max(0, Math.round(((end ? new Date(end).getTime() : Date.now()) - new Date(start).getTime()) / 60000))
 }
 
-function Icon({ name }: { name: 'home' | 'generate' | 'history' | 'settings' | 'check' | 'plus' | 'minus' | 'arrow' | 'close' | 'clock' | 'spark' }) {
+function Icon({ name }: { name: 'home' | 'generate' | 'history' | 'settings' | 'check' | 'plus' | 'minus' | 'arrow' | 'close' | 'clock' | 'spark' | 'trash' }) {
   const paths: Record<string, string> = {
     home: 'M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9 20v-6h6v6',
     generate: 'M12 3v5m0 8v5M3 12h5m8 0h5M5.6 5.6l3.5 3.5m5.8 5.8 3.5 3.5m0-12.8-3.5 3.5m-5.8 5.8-3.5 3.5',
@@ -48,6 +64,7 @@ function Icon({ name }: { name: 'home' | 'generate' | 'history' | 'settings' | '
     arrow: 'M5 12h14m-6-6 6 6-6 6', close: 'm6 6 12 12M18 6 6 18',
     clock: 'M12 8v4l2.5 1.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
     spark: 'm12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Zm7 12 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z',
+    trash: 'M4 7h16M10 11v6m4-6v6M5 7l1 14h12l1-14M9 7V4h6v3',
   }
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d={paths[name]} /></svg>
 }
@@ -70,6 +87,7 @@ export function App() {
   const [sessionDetailId, setSessionDetailId] = useState<string | null>(null)
   const sessionsRef = useRef<WorkoutSession[]>([])
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
+  const settingsWriteQueue = useRef<Promise<void>>(Promise.resolve())
   const fileInput = useRef<HTMLInputElement>(null)
 
   const loadAll = async () => {
@@ -79,9 +97,12 @@ export function App() {
       const [storedSettings, storedCaps, storedWeights, storedSessions, storedMeta] = await Promise.all([
         storage.getSettings(), storage.listCapabilities(), storage.listWeights(), storage.listSessions(), storage.getMeta(),
       ])
+      const loadedSessions = storedSessions.map(session => fillStarterLoads(session, storedSettings.profile.weightKg, storedCaps))
+      try { await Promise.all(loadedSessions.filter((session, index) => session !== storedSessions[index]).map(session => storage.saveSession(session))) }
+      catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
       setSettings(storedSettings); setSettingsDraft(storedSettings); setCapabilities(storedCaps); setWeights(storedWeights)
-      sessionsRef.current = storedSessions
-      setSessions(storedSessions); setMeta(storedMeta)
+      sessionsRef.current = loadedSessions
+      setSessions(loadedSessions); setMeta(storedMeta)
       await setLanguage(storedSettings.language)
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
       const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
@@ -95,6 +116,23 @@ export function App() {
   }
 
   useEffect(() => { void loadAll() }, [])
+  useEffect(() => {
+    const refreshSettings = async () => {
+      if (document.visibilityState === 'hidden') return
+      try {
+        await settingsWriteQueue.current
+        const latest = await storage.getSettings()
+        setSettings(latest); setSettingsDraft(latest)
+        await setLanguage(latest.language)
+      } catch { /* A focus refresh should not replace the app's normal storage error handling. */ }
+    }
+    document.addEventListener('visibilitychange', refreshSettings)
+    window.addEventListener('focus', refreshSettings)
+    return () => {
+      document.removeEventListener('visibilitychange', refreshSettings)
+      window.removeEventListener('focus', refreshSettings)
+    }
+  }, [])
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }) }, [screen])
   useEffect(() => {
     if (screen !== 'settings' || !navigator.storage?.estimate) return
@@ -114,29 +152,29 @@ export function App() {
   const backupReferenceAt = meta.lastBackupAt ? new Date(meta.lastBackupAt).getTime() : firstTrainingDataAt
   const backupDue = hasTrainingData && Number.isFinite(backupReferenceAt) && Date.now() - backupReferenceAt >= 14 * 86400000
 
-  const updateSettings = async (next: AppSettings, recordWeight = false) => {
+  const updateSettings = async (next: AppSettings) => {
+    setSettingsDraft(next)
+    const operation = settingsWriteQueue.current.catch(() => undefined).then(() => storage.saveSettings(next))
+    settingsWriteQueue.current = operation.catch(() => undefined)
     try {
-      await storage.saveSettings(next)
-      if (recordWeight && next.profile.weightKg !== null && next.profile.weightKg !== settings.profile.weightKg) {
-        const entry = { id: newId(), date: new Date().toISOString(), weightKg: next.profile.weightKg }
-        await storage.saveWeight(entry); setWeights(value => [...value, entry])
-      }
-      setSettings(next); setSettingsDraft(next)
+      await operation
+      setSettings(next)
       if (next.language !== settings.language) await setLanguage(next.language)
-      setNotice(t('settings.saved'))
       setStorageError('')
     } catch (error) {
       setStorageError(error instanceof Error ? error.message : t('settings.dataError'))
-      throw error
     }
   }
   const logCurrentWeight = async (next: AppSettings) => {
     if (next.profile.weightKg === null) return
+    const saveSettings = settingsWriteQueue.current.catch(() => undefined).then(() => storage.saveSettings(next))
+    settingsWriteQueue.current = saveSettings.catch(() => undefined)
     try {
-      await storage.saveSettings(next)
+      await saveSettings
       const entry = { id: newId(), date: new Date().toISOString(), weightKg: next.profile.weightKg }
       await storage.saveWeight(entry)
       setSettings(next); setSettingsDraft(next); setWeights(items => [...items, entry]); setNotice(t('settings.weightLogged'))
+      setStorageError('')
     } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
   }
 
@@ -150,6 +188,18 @@ export function App() {
   const removeCapability = async (id: string) => {
     try { await storage.deleteCapability(id); setCapabilities(items => items.filter(item => item.exerciseId !== id)) }
     catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
+  }
+  const removeSession = async (id: string) => {
+    const session = sessionsRef.current.find(item => item.id === id)
+    if (!session || !window.confirm(t('history.removeConfirm'))) return
+    try {
+      await storage.deleteSession(id)
+      const remaining = sessionsRef.current.filter(item => item.id !== id)
+      sessionsRef.current = remaining; setSessions(remaining)
+      if (runnerId === id) setRunnerId(null)
+      if (sessionDetailId === id) setSessionDetailId(null)
+      setStorageError(''); setNotice(t('history.removed'))
+    } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
   }
 
   const commitSession = (transform: (current: WorkoutSession) => WorkoutSession, id?: string) => {
@@ -182,7 +232,7 @@ export function App() {
   }
   const createProgram = async (input: LocalProgramInput) => {
     try {
-      const program = buildLocalProgram(input, capabilities)
+      const program = buildLocalProgram(input, capabilities, settings.profile.weightKg)
       const session = makeProgramSession(program, newId())
       const nextMeta = { ...meta, program }
       await storage.saveMeta(nextMeta)
@@ -298,7 +348,7 @@ export function App() {
         }
       }} />}
       {screen === 'runner' && <RunnerScreen session={sessions.find(item => item.id === runnerId) ?? currentSession} settings={settings} onStart={startSession} onFinish={finishSession} mutate={commitSession} onApplyUpdates={applyCapabilityUpdates} onHome={() => navigate('home')} />}
-      {screen === 'history' && <HistoryScreen sessions={sortedSessions} weights={weights} units={settings.units} detail={detailSession} onOpen={id => setSessionDetailId(id)} onClose={() => setSessionDetailId(null)} />}
+      {screen === 'history' && <HistoryScreen sessions={sortedSessions} weights={weights} units={settings.units} detail={detailSession} onOpen={id => setSessionDetailId(id)} onClose={() => setSessionDetailId(null)} onRemove={removeSession} />}
       {screen === 'settings' && <SettingsScreen settings={settingsDraft} setDraft={setSettingsDraft} capabilities={capabilities} meta={meta} persistState={persistState} storageEstimate={storageEstimate} onSave={updateSettings} onRecordWeight={logCurrentWeight} onSaveCapability={saveCapability} onRemoveCapability={removeCapability} onExport={exportData} onImportClick={() => fileInput.current?.click()} />}
     </main>
 
@@ -329,7 +379,7 @@ function HomeScreen({ sessions, currentSession, program, onGenerate, onStartProg
 
 function GenerateScreen({ settings, capabilities, sessions, program, onPlan, onCreateProgram }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; program: TrainingProgram | null; onPlan: (input: GenerateInput, apiKey: string, refineNext: boolean) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }>; onCreateProgram: (input: LocalProgramInput) => Promise<boolean> }) {
   const [duration, setDuration] = useState(60)
-  const [sessionsPerWeek, setSessionsPerWeek] = useState(3)
+  const [sessionsPerWeekInput, setSessionsPerWeekInput] = useState('3')
   const [focus, setFocus] = useState('')
   const [feel, setFeel] = useState('')
   const [equipment, setEquipment] = useState(settings.equipment)
@@ -341,6 +391,8 @@ function GenerateScreen({ settings, capabilities, sessions, program, onPlan, onC
   const [showKey, setShowKey] = useState(false)
   const [refineNext, setRefineNext] = useState(false)
   const [usage, setUsage] = useState<{ promptTokens: number; completionTokens: number } | null>(null)
+  const sessionsPerWeek = Number(sessionsPerWeekInput)
+  const validSessionsPerWeek = /^\d+$/.test(sessionsPerWeekInput) && sessionsPerWeek >= 1 && sessionsPerWeek <= 7
   const estimatedTokens = useMemo(() => estimateTokens(makePromptPayload({ duration, focus, feel, equipment }, settings, capabilities, sessions).payload), [duration, focus, feel, equipment, settings, capabilities, sessions])
 
   const changePreset = (value: string) => { setPreset(value); if (presets[value]) setEquipment(presets[value]) }
@@ -365,7 +417,7 @@ function GenerateScreen({ settings, capabilities, sessions, program, onPlan, onC
       <div class="form-row"><label class="form-group"><span>{t('generator.focus')}</span><input class="text-input" value={focus} maxlength={120} placeholder={t('generator.focusPlaceholder')} onInput={event => setFocus((event.currentTarget as HTMLInputElement).value)} /></label><label class="form-group"><span>{t('generator.feel')}</span><input class="text-input" value={feel} maxlength={160} placeholder={t('generator.feelPlaceholder')} onInput={event => setFeel((event.currentTarget as HTMLInputElement).value)} /></label></div>
       <div class="form-group"><label for="gen-preset">{t('settings.preset')}</label><select class="text-input" id="gen-preset" value={preset} onChange={event => changePreset((event.currentTarget as HTMLSelectElement).value)}><option value="park">{t('generator.presetPark')}</option><option value="gym">{t('generator.presetGym')}</option><option value="home">{t('generator.presetHome')}</option><option value="custom">{t('generator.presetCustom')}</option></select></div>
       <fieldset class="equipment-grid"><legend>{t('generator.equipment')}</legend>{equipmentKeys.map(key => <label class="check-chip" key={key}><input type="checkbox" checked={equipment.includes(key)} onChange={event => { setPreset('custom'); setEquipment(value => event.currentTarget.checked ? [...new Set([...value, key])] : value.filter(x => x !== key)) }} /><span class="check-mark"><Icon name="check" /></span>{t(`equipment.${key}` as TranslationKey)}</label>)}</fieldset>
-      <div class="offline-program-builder"><div><p class="eyebrow">{t('program.offlineEyebrow')}</p><h2>{t('program.offlineTitle')}</h2><p>{t('program.offlineBody')}</p></div><label class="form-group"><span>{t('program.sessionsPerWeekLabel')}</span><select class="text-input" value={sessionsPerWeek} onChange={event => setSessionsPerWeek(Number((event.currentTarget as HTMLSelectElement).value))}>{[2, 3, 4, 5, 6].map(count => <option key={count} value={count}>{t('program.sessionsPerWeek', { count })}</option>)}</select></label><button class="button button-primary full-width" type="button" disabled={programPending || pending || !equipment.length} onClick={() => void createOfflineProgram()}>{programPending ? <><span class="spinner" />{t('program.building')}</> : <>{t('program.createOffline')}<Icon name="arrow" /></>}</button><p class="privacy-line">{t('program.offlineNote')}</p></div>
+      <div class="offline-program-builder"><div><p class="eyebrow">{t('program.offlineEyebrow')}</p><h2>{t('program.offlineTitle')}</h2><p>{t('program.offlineBody')}</p></div><label class="form-group"><span>{t('program.sessionsPerWeekLabel')}</span><input class="text-input" type="number" min="1" max="7" step="1" inputMode="numeric" value={sessionsPerWeekInput} onInput={event => setSessionsPerWeekInput((event.currentTarget as HTMLInputElement).value)} /><small class="field-hint">{t('program.sessionsPerWeekHelp')}</small></label><button class="button button-primary full-width" type="button" disabled={programPending || pending || !equipment.length || !validSessionsPerWeek} onClick={() => void createOfflineProgram()}>{programPending ? <><span class="spinner" />{t('program.building')}</> : <>{t('program.createOffline')}<Icon name="arrow" /></>}</button><p class="privacy-line">{t('program.offlineNote')}</p></div>
       <details class="ai-option"><summary>{t('program.aiOptional')}</summary><p class="card-description">{t('program.aiOptionalBody')}</p>
         {program && <label class="check-chip ai-refine-choice"><input type="checkbox" checked={refineNext} onChange={event => setRefineNext(event.currentTarget.checked)} /><span class="check-mark"><Icon name="check" /></span>{t('program.refineNext')}</label>}
         <div class="token-estimate"><span><Icon name="spark" />{t('generator.tokenEstimate')}</span><strong>{t('generator.estimatedTokens', { count: estimatedTokens })}</strong></div>
@@ -422,6 +474,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   const done = doneSetCount(session)
   const progressed = session.workout.blocks.reduce((sum, block) => sum + block.items.reduce((inner, item) => inner + (item.skipped ? item.sets : item.log.filter(set => set.done).length), 0), 0)
   const progress = planned ? Math.round(progressed / planned * 100) : 0
+  const hasWeightedExercises = session.workout.blocks.some(block => block.items.some(item => exerciseById.get(item.ex)?.loadable))
   const elapsed = minutesBetween(session.startedAt, session.status === 'completed' ? session.finishedAt : new Date(now).toISOString())
   const byId = (blockIndex: number, itemIndex: number, transform: (item: WorkoutItem) => WorkoutItem, timer?: number | null) => {
     mutate(current => ({ ...current, workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== blockIndex ? block : ({ ...block, items: block.items.map((item, ii) => ii === itemIndex ? transform(item) : item) })) }, ...(timer === undefined ? {} : { timerEndsAt: timer }) }), session.id)
@@ -484,6 +537,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     <header class="runner-head"><div><p class="eyebrow">{session.status === 'active' ? t('runner.eyebrow') : t('history.planned')}</p><h1>{session.workout.title}</h1></div><div class="runner-head-time"><strong>{elapsed}</strong><span>{t('app.minutes')}</span></div></header>
     {session.status === 'planned' && <div class="runner-start-panel"><p>{t('runner.plannedNotice')}</p><button class="button button-primary" onClick={() => void onStart(session.id)}>{t('runner.start')}<Icon name="arrow" /></button></div>}
     <div class="runner-progress"><div class="progress-label"><span>{t('runner.progress')}</span><strong>{formatNumber(progress)}%</strong></div><div class="progress-track"><i style={{ width: `${progress}%` }} /></div><div class="progress-meta"><span>{formatNumber(done)}/{formatNumber(planned)} {t('runner.setsDone')}</span>{session.status === 'active' && <span>{t('runner.elapsed')} · {formatNumber(elapsed)} {t('app.minutes')}</span>}</div></div>
+    {hasWeightedExercises && <p class="load-guidance">{t('runner.loadGuidance')}</p>}
     <div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{session.workout.coach}</strong></div></div>
     {session.usage && <p class="actual-usage">{t('generator.usage', { prompt: session.usage.promptTokens, completion: session.usage.completionTokens })}</p>}
       <div class="workout-blocks">{session.workout.blocks.map((block, bi) => <section class="workout-block" key={`${session.id}-${bi}`}><header class="block-heading"><span class="block-index">{String(bi + 1).padStart(2, '0')}</span><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2></header>
@@ -516,7 +570,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   </section>
 }
 
-function HistoryScreen({ sessions, weights, units, detail, onOpen, onClose }: { sessions: WorkoutSession[]; weights: WeightEntry[]; units: 'kg' | 'lb'; detail: WorkoutSession | null; onOpen: (id: string) => void; onClose: () => void }) {
+function HistoryScreen({ sessions, weights, units, detail, onOpen, onClose, onRemove }: { sessions: WorkoutSession[]; weights: WeightEntry[]; units: 'kg' | 'lb'; detail: WorkoutSession | null; onOpen: (id: string) => void; onClose: () => void; onRemove: (id: string) => void }) {
   const completed = sessions.filter(session => session.status === 'completed')
   const allIds = [...new Set(completed.flatMap(session => session.workout.blocks.flatMap(block => block.items.map(item => item.ex))))]
   const [selectedExercise, setSelectedExercise] = useState(allIds[0] ?? '')
@@ -550,19 +604,19 @@ function HistoryScreen({ sessions, weights, units, detail, onOpen, onClose }: { 
     <div class="history-insight-row"><div class="insight-card"><span>{t('history.averageCompletion')}</span><strong>{formatNumber(summary.avg_completion)}<small>%</small></strong></div><div class="insight-card"><span>{t('history.weightTrend')}</span><strong>{weights.length ? `${formatLoad(weights.at(-1)?.weightKg ?? null, units)} ${units}` : '—'}</strong><small>{weights.at(-1) ? formatDate(weights.at(-1)!.date) : t('settings.never')}</small></div></div>
     {weightTrend.length > 1 && <div class="chart-card"><div class="chart-head"><div><p class="eyebrow">{t('history.weightTrend')}</p><h2>{t('settings.weight')}</h2></div><span class="chart-foot">{units}</span></div><div class="chart-wrap"><svg viewBox="0 0 320 116" role="img" aria-label={t('history.weightTrend')}><path d="M18 24H302M18 59H302M18 94H302" class="chart-gridline" /><polyline points={weightPoints} class="chart-line" />{weightTrend.map((point, index) => { const [x, y] = weightPoints.split(' ')[index].split(','); return <circle key={point.id} cx={x} cy={y} r="4" class="chart-point" /> })}</svg></div><div class="chart-foot"><span>{formatDate(weightTrend[0].date)}</span><strong>{formatLoad(weightTrend.at(-1)!.weightKg, units)} {units}</strong><span>{formatDate(weightTrend.at(-1)!.date)}</span></div></div>}
     {completed.length > 1 && <div class="chart-card"><div class="chart-head"><div><p class="eyebrow">{t('history.exerciseProgress')}</p><h2>{selectedExercise ? exerciseText(selectedExercise).name : t('history.selectExercise')}</h2></div><label class="visually-hidden" for="exercise-trend">{t('history.selectExercise')}</label><select class="chart-select" id="exercise-trend" value={selectedExercise} onChange={event => setSelectedExercise((event.currentTarget as HTMLSelectElement).value)}>{allIds.map(id => <option value={id} key={id}>{exerciseText(id).name}</option>)}</select></div>{trendData.length > 1 ? <><div class="chart-wrap"><svg viewBox="0 0 320 116" role="img" aria-label={`${exerciseText(selectedExercise).name} ${t(`history.trend${(summary.exercise[selectedExercise]?.trend ?? 'flat').charAt(0).toUpperCase()}${(summary.exercise[selectedExercise]?.trend ?? 'flat').slice(1)}` as TranslationKey)}`}><path d="M18 24H302M18 59H302M18 94H302" class="chart-gridline" /><polyline points={points} class="chart-line" />{trendData.map((point, index) => { const [x, y] = points.split(' ')[index].split(','); return <circle key={point.date} cx={x} cy={y} r="4" class="chart-point" /> })}</svg></div><div class="chart-foot"><span>{formatDate(trendData[0].date)}</span><strong>{t('history.best')}: {formatNumber(summary.exercise[selectedExercise]?.best ?? 0)}</strong><span>{formatDate(trendData.at(-1)!.date)}</span></div><p class="trend-pill">{t(`history.trend${(summary.exercise[selectedExercise]?.trend ?? 'flat').charAt(0).toUpperCase()}${(summary.exercise[selectedExercise]?.trend ?? 'flat').slice(1)}` as TranslationKey)}</p></> : <p class="field-hint">{t('history.noData')}</p>}</div>}
-    {sessions.length === 0 ? <div class="empty-history"><span class="empty-mark"><Icon name="history" /></span><h2>{t('history.emptyTitle')}</h2><p>{t('history.emptyBody')}</p></div> : <div class="session-list">{sessions.map(session => <button class="history-card" key={session.id} onClick={() => onOpen(session.id)}><div class="history-card-date"><span>{new Intl.DateTimeFormat(currentLanguage(), { weekday: 'short' }).format(new Date(session.createdAt))}</span><strong>{new Intl.DateTimeFormat(currentLanguage(), { day: '2-digit' }).format(new Date(session.createdAt))}</strong><small>{new Intl.DateTimeFormat(currentLanguage(), { month: 'short' }).format(new Date(session.createdAt))}</small></div><div class="history-card-main"><span class={`status-label status-${session.status}`}>{t(`history.${session.status}` as TranslationKey)}</span><h3>{session.workout.title}</h3><p>{formatNumber(session.workout.blocks.reduce((sum, block) => sum + block.items.length, 0))} {t('runner.exercise')} · {formatNumber(session.workout.est_min)} {t('app.minutes')}</p></div><div class="history-completion"><strong>{formatNumber(completionRate(session))}%</strong><Icon name="arrow" /></div></button>)}</div>}
+    {sessions.length === 0 ? <div class="empty-history"><span class="empty-mark"><Icon name="history" /></span><h2>{t('history.emptyTitle')}</h2><p>{t('history.emptyBody')}</p></div> : <div class="session-list">{sessions.map(session => <article class="history-card" key={session.id}><button class="history-card-open" onClick={() => onOpen(session.id)}><div class="history-card-date"><span>{new Intl.DateTimeFormat(currentLanguage(), { weekday: 'short' }).format(new Date(session.createdAt))}</span><strong>{new Intl.DateTimeFormat(currentLanguage(), { day: '2-digit' }).format(new Date(session.createdAt))}</strong><small>{new Intl.DateTimeFormat(currentLanguage(), { month: 'short' }).format(new Date(session.createdAt))}</small></div><div class="history-card-main"><span class={`status-label status-${session.status}`}>{t(`history.${session.status}` as TranslationKey)}</span><h3>{session.workout.title}</h3><p>{formatNumber(session.workout.blocks.reduce((sum, block) => sum + block.items.length, 0))} {t('runner.exercise')} · {formatNumber(session.workout.est_min)} {t('app.minutes')}</p></div><div class="history-completion"><strong>{formatNumber(completionRate(session))}%</strong><Icon name="arrow" /></div></button><button class="remove-session" aria-label={`${t('history.removeWorkout')}: ${session.workout.title}`} title={t('history.removeWorkout')} onClick={() => onRemove(session.id)}><Icon name="trash" /></button></article>)}</div>}
   </section>
 }
 
 function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, storageEstimate, onSave, onRecordWeight, onSaveCapability, onRemoveCapability, onExport, onImportClick }: {
   settings: AppSettings; setDraft: (value: AppSettings) => void; capabilities: Capability[]; meta: AppMeta
-  persistState: PersistState; storageEstimate: { usage?: number; quota?: number }; onSave: (value: AppSettings, recordWeight?: boolean) => Promise<void>
+  persistState: PersistState; storageEstimate: { usage?: number; quota?: number }; onSave: (value: AppSettings) => Promise<void>
   onRecordWeight: (value: AppSettings) => Promise<void>
   onSaveCapability: (value: Capability) => Promise<void>; onRemoveCapability: (id: string) => Promise<void>; onExport: (includeKey: boolean) => Promise<void>; onImportClick: () => void
 }) {
   const [showKey, setShowKey] = useState(false)
   const [includeKey, setIncludeKey] = useState(false)
-  const [selectedId, setSelectedId] = useState(catalog[0]?.id ?? '')
+  const [selectedId, setSelectedId] = useState(commonCapabilityIds[0])
   const [capMode, setCapMode] = useState<'max' | 'load'>('max')
   const [maxInput, setMaxInput] = useState('')
   const [loadInput, setLoadInput] = useState('')
@@ -574,7 +628,11 @@ function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, 
     else if (existing) { setCapMode('load'); setLoadInput(existing.loadKg === null ? '' : String(formatLoad(existing.loadKg, settings.units))); setRepsInput(String(existing.reps ?? '')); setMaxInput('') }
     else { setCapMode(selectedExercise?.loadable ? 'load' : 'max'); setMaxInput(''); setLoadInput(''); setRepsInput('') }
   }, [selectedId, capabilities, settings.units])
-  const update = (patch: Partial<AppSettings>) => setDraft({ ...settings, ...patch })
+  const update = (patch: Partial<AppSettings>) => {
+    const next = { ...settings, ...patch }
+    setDraft(next)
+    void onSave(next)
+  }
   const updateProfile = (patch: Partial<AppSettings['profile']>) => update({ profile: { ...settings.profile, ...patch } })
   const byteSize = (value?: number) => value === undefined ? '—' : value < 1024 ** 2 ? `${formatNumber(Math.round(value / 1024))} KB` : `${formatNumber(value / 1024 ** 2, 1)} MB`
   const saveCap = async (event: Event) => {
@@ -590,7 +648,8 @@ function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, 
     document.getElementById('cap-editor')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
   const visibleWeight = settings.profile.weightKg === null ? '' : String(Number((settings.units === 'lb' ? settings.profile.weightKg * 2.20462 : settings.profile.weightKg).toFixed(1)))
-  return <section class="settings-screen"><header class="section-intro"><p class="eyebrow">{t('settings.eyebrow')}</p><h1>{t('settings.title')}</h1><p>{t('settings.description')}</p></header>
+  const capabilityOptions = [...new Set([...commonCapabilityIds, ...capabilities.map(capability => capability.exerciseId)])]
+  return <section class="settings-screen"><header class="section-intro"><p class="eyebrow">{t('settings.eyebrow')}</p><h1>{t('settings.title')}</h1><p>{t('settings.description')}</p><p class="settings-autosave">{t('settings.autoSave')}</p></header>
     <div class="settings-layout">
       <section class="settings-card"><div class="settings-card-heading"><span class="section-number">01</span><div><p class="eyebrow">{t('settings.accountTitle')}</p><h2>{t('settings.apiAccessTitle')}</h2></div><span class="section-icon"><Icon name="spark" /></span></div>
         <label class="form-group"><span>{t('settings.apiKey')}</span><div class="input-with-action"><input class="text-input" type={showKey ? 'text' : 'password'} autocomplete="off" spellcheck={false} value={settings.apiKey} placeholder={t('settings.apiKeyPlaceholder')} onInput={event => update({ apiKey: (event.currentTarget as HTMLInputElement).value })} /><button class="show-key" type="button" onClick={() => setShowKey(!showKey)}>{showKey ? t('settings.hideKey') : t('settings.showKey')}</button></div><small class="field-hint">{t('settings.apiKeyHelp')}</small></label>
@@ -606,7 +665,7 @@ function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, 
 
       <section class="settings-card"><div class="settings-card-heading"><span class="section-number">03</span><div><p class="eyebrow">{t('settings.capabilitiesTitle')}</p><h2>{t('settings.capabilitiesTitle')}</h2></div><span class="section-icon"><Icon name="generate" /></span></div><p class="card-description">{t('settings.capabilitiesDescription')}</p>
         {capabilities.length ? <div class="capability-list">{capabilities.map(cap => <div class="capability-pill" key={cap.exerciseId}><button class="capability-edit" onClick={() => editCap(cap)}><strong>{exerciseText(cap.exerciseId).name}</strong><span>{cap.max !== null ? `${cap.max} ${t('settings.maxReps')}` : `${formatLoad(cap.loadKg, settings.units)} ${settings.units} × ${cap.reps}`}</span></button><button class="remove-capability" aria-label={`${t('app.delete')} ${exerciseText(cap.exerciseId).name}`} onClick={() => void onRemoveCapability(cap.exerciseId)}><Icon name="close" /></button></div>)}</div> : <p class="empty-inline">{t('settings.noCapabilities')}</p>}
-        <form id="cap-editor" class="cap-editor" onSubmit={saveCap}><label class="form-group"><span>{t('settings.addCapability')}</span><select class="text-input" value={selectedId} onChange={event => setSelectedId((event.currentTarget as HTMLSelectElement).value)}>{catalog.map(ex => <option value={ex.id} key={ex.id}>{exerciseText(ex.id).name} · {t(`pattern.${ex.pattern}` as TranslationKey)}</option>)}</select></label>
+        <form id="cap-editor" class="cap-editor" onSubmit={saveCap}><label class="form-group"><span>{t('settings.addCapability')}</span><select class="text-input" value={selectedId} onChange={event => setSelectedId((event.currentTarget as HTMLSelectElement).value)}>{capabilityOptions.map(id => { const ex = exerciseById.get(id); return ex ? <option value={ex.id} key={ex.id}>{exerciseText(ex.id).name} · {t(`pattern.${ex.pattern}` as TranslationKey)}</option> : null })}</select></label>
           {selectedExercise?.loadable && <div class="segmented-control"><button type="button" class={capMode === 'max' ? 'selected' : ''} onClick={() => setCapMode('max')}>{t('settings.maxReps')}</button><button type="button" class={capMode === 'load' ? 'selected' : ''} onClick={() => setCapMode('load')}>{t('settings.loadKg')}</button></div>}
           {capMode === 'max' || !selectedExercise?.loadable ? <label class="form-group"><span>{t('settings.maxReps')}</span><input class="text-input" type="number" min="1" max="600" value={maxInput} onInput={event => setMaxInput((event.currentTarget as HTMLInputElement).value)} /></label> : <div class="form-row"><label class="form-group"><span>{t('settings.loadKg')} ({settings.units})</span><input class="text-input" type="number" min="0" max="1000" step="0.5" value={loadInput} onInput={event => setLoadInput((event.currentTarget as HTMLInputElement).value)} /></label><label class="form-group"><span>{t('settings.capReps')}</span><input class="text-input" type="number" min="1" max="300" value={repsInput} onInput={event => setRepsInput((event.currentTarget as HTMLInputElement).value)} /></label></div>}
           <button class="button button-secondary full-width" type="submit" disabled={capMode === 'max' ? !maxInput : !loadInput || !repsInput}><Icon name="plus" />{t('settings.addCapability')}</button>
@@ -629,6 +688,5 @@ function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, 
         <small class="field-hint">{t('app.notice')}</small>
       </section>
     </div>
-    <button class="button button-primary full-width save-settings" onClick={() => void onSave(settings, true)}>{t('app.save')}<Icon name="check" /></button>
   </section>
 }

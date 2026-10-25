@@ -111,6 +111,7 @@ export interface Storage {
   listSessions(): Promise<WorkoutSession[]>
   getSession(id: string): Promise<WorkoutSession | undefined>
   saveSession(value: WorkoutSession): Promise<void>
+  deleteSession(id: string): Promise<void>
   getMeta(): Promise<AppMeta>
   saveMeta(value: AppMeta): Promise<void>
   exportSnapshot(includeApiKey?: boolean): Promise<AppSnapshot>
