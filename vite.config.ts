@@ -1,10 +1,18 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import preact from '@preact/preset-vite'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
 
+const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as { version: string }
+
 export default defineConfig({
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(packageJson.version),
+    __APP_BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [preact(), tailwindcss(), VitePWA({
     registerType: 'autoUpdate',
     includeAssets: ['favicon.svg', 'apple-touch-icon.png'],

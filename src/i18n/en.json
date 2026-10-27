@@ -242,6 +242,7 @@
     "persistentNo": "Browser may clear old data",
     "persistentUnsupported": "This browser does not offer persistence status",
     "storageUsed": "Approx. {{used}} used of {{quota}}",
+    "version": "App version",
     "lastBackup": "Last backup",
     "never": "Never",
     "export": "Export all data (JSON)",

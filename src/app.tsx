@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type Capability, type Equipment, type TrainingProgram, type WeightEntry, type WorkoutItem, type WorkoutSession } from './storage/types'
 import { storage } from './storage/local'
-import { catalog, cueFor, exerciseById, nameFor, starterLoadKg } from './lib/catalog'
+import { cueFor, exerciseById, nameFor, starterLoadKg } from './lib/catalog'
 import exerciseImages from './data/exercise-images.json'
 import { exerciseGuideFor } from './data/exercise-guides.en'
 import { advanceProgram, buildLocalProgram, makeProgramSession, normalizeProgramWeek, refineProgramSlot, slotLabel, weekKey, type LocalProgramInput } from './lib/program'
@@ -686,6 +686,7 @@ function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, 
         <button class="button button-secondary full-width" onClick={() => void onExport(includeKey)}>{t('settings.export')}<Icon name="arrow" /></button>
         <button class="button button-outline full-width" onClick={onImportClick}>{t('settings.import')}<Icon name="arrow" /></button>
         <small class="field-hint">{t('app.notice')}</small>
+        <div class="backup-date"><span>{t('settings.version')}</span><strong>{__APP_VERSION__} · {__APP_BUILD_TIME__.slice(0, 19).replace('T', ' ')} UTC</strong></div>
       </section>
     </div>
   </section>
