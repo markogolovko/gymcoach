@@ -5,7 +5,7 @@ import { cueFor, exerciseById, nameFor, starterLoadKg } from './lib/catalog'
 import exerciseImages from './data/exercise-images.json'
 import { exerciseGuideFor } from './data/exercise-guides.en'
 import { advanceProgram, buildLocalProgram, makeProgramSession, normalizeProgramWeek, refineProgramSlot, slotLabel, weekKey, type LocalProgramInput } from './lib/program'
-import { completionRate, doneSetCount, plannedSetCount, summarizeHistory } from './lib/history'
+import { completionRate, doneSetCount, performedAt, plannedSetCount, summarizeHistory } from './lib/history'
 import { generateWorkout, CoachError } from './lib/openai'
 import { estimateTokens, makePromptPayload, type GenerateInput } from './lib/prompt'
 import { adjustEndTime, formatTimer, secondsRemaining } from './lib/timer'
@@ -34,17 +34,25 @@ function formatLoad(kg: number | null, units: 'kg' | 'lb') {
   return new Intl.NumberFormat(currentLanguage(), { maximumFractionDigits: 1 }).format(value)
 }
 function toKg(value: number, units: 'kg' | 'lb') { return units === 'lb' ? value / 2.20462 : value }
-function fillStarterLoads(session: WorkoutSession, bodyWeightKg: number | null, capabilities: Capability[]): WorkoutSession {
+function fillStarterLoads(session: WorkoutSession, bodyWeightKg: number | null, capabilities: Capability[], previousSessions: WorkoutSession[] = []): WorkoutSession {
   if (session.status === 'completed') return session
   let changed = false
+  const previousLoadFor = (exerciseId: string) => previousSessions.filter(value => value.status === 'completed')
+    .sort((a, b) => performedAt(b).localeCompare(performedAt(a)))
+    .flatMap(value => value.workout.blocks.flatMap(block => block.items.filter(item => item.ex === exerciseId)
+      .flatMap(item => item.log.filter(set => set.done && set.loadKg !== null && set.loadKg > 0).map(set => set.loadKg as number))))[0]
   const blocks = session.workout.blocks.map(block => ({
     ...block,
     items: block.items.map(item => {
-      if ((item.load !== null && item.load > 0) || !exerciseById.get(item.ex)?.loadable) return item
+      if (!exerciseById.get(item.ex)?.loadable) return item
       const capabilityLoad = capabilities.find(capability => capability.exerciseId === item.ex)?.loadKg
-      const load = capabilityLoad && capabilityLoad > 0 ? capabilityLoad : starterLoadKg(item.ex, bodyWeightKg)
+      const previousLoad = previousLoadFor(item.ex)
+      const machineChestPressTooLight = session.status === 'planned' && item.ex === 'chest_press_machine'
+        && item.load !== null && item.load > 0 && item.load < 15 && !(capabilityLoad && capabilityLoad > 0)
+      if ((item.load !== null && item.load > 0) && !machineChestPressTooLight) return item
+      const load = capabilityLoad && capabilityLoad > 0 ? capabilityLoad : previousLoad ?? starterLoadKg(item.ex, bodyWeightKg)
       changed = true
-      return { ...item, load, log: item.log.map(set => ({ ...set, loadKg: set.loadKg === null || (!set.done && set.loadKg === 0) ? load : set.loadKg })) }
+      return { ...item, load, log: item.log.map(set => ({ ...set, loadKg: set.loadKg === null || (!set.done && (set.loadKg === 0 || (machineChestPressTooLight && set.loadKg === item.load))) ? load : set.loadKg })) }
     }),
   }))
   return changed ? { ...session, workout: { ...session.workout, blocks } } : session
@@ -85,6 +93,7 @@ export function App() {
   const [iosGuide, setIosGuide] = useState(false)
   const [notice, setNotice] = useState('')
   const [sessionDetailId, setSessionDetailId] = useState<string | null>(null)
+  const [historyWeekOnly, setHistoryWeekOnly] = useState(false)
   const sessionsRef = useRef<WorkoutSession[]>([])
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
   const settingsWriteQueue = useRef<Promise<void>>(Promise.resolve())
@@ -97,7 +106,7 @@ export function App() {
       const [storedSettings, storedCaps, storedWeights, storedSessions, storedMeta] = await Promise.all([
         storage.getSettings(), storage.listCapabilities(), storage.listWeights(), storage.listSessions(), storage.getMeta(),
       ])
-      const loadedSessions = storedSessions.map(session => fillStarterLoads(session, storedSettings.profile.weightKg, storedCaps))
+      const loadedSessions = storedSessions.map(session => fillStarterLoads(session, storedSettings.profile.weightKg, storedCaps, storedSessions))
       try { await Promise.all(loadedSessions.filter((session, index) => session !== storedSessions[index]).map(session => storage.saveSession(session))) }
       catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
       setSettings(storedSettings); setSettingsDraft(storedSettings); setCapabilities(storedCaps); setWeights(storedWeights)
@@ -116,6 +125,29 @@ export function App() {
   }
 
   useEffect(() => { void loadAll() }, [])
+  useEffect(() => {
+    let lastTouchAt = 0
+    let lastTouchX = 0
+    let lastTouchY = 0
+    const preventDoubleTapZoom = (event: TouchEvent) => {
+      const touch = event.changedTouches[0]
+      if (!touch) return
+      const target = event.target instanceof Element ? event.target : null
+      const interactive = target?.closest('button, a, input, textarea, select, [role="button"]')
+      const nearPreviousTap = Math.hypot(touch.clientX - lastTouchX, touch.clientY - lastTouchY) < 28
+      if (!interactive && Date.now() - lastTouchAt < 350 && nearPreviousTap) event.preventDefault()
+      lastTouchAt = Date.now()
+      lastTouchX = touch.clientX
+      lastTouchY = touch.clientY
+    }
+    const preventDoubleClickZoom = (event: MouseEvent) => event.preventDefault()
+    document.addEventListener('touchend', preventDoubleTapZoom, { passive: false })
+    document.addEventListener('dblclick', preventDoubleClickZoom, { passive: false })
+    return () => {
+      document.removeEventListener('touchend', preventDoubleTapZoom)
+      document.removeEventListener('dblclick', preventDoubleClickZoom)
+    }
+  }, [])
   useEffect(() => {
     const refreshSettings = async () => {
       if (document.visibilityState === 'hidden') return
@@ -143,7 +175,7 @@ export function App() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
-  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => (b.createdAt).localeCompare(a.createdAt)), [sessions])
+  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => performedAt(b).localeCompare(performedAt(a))), [sessions])
   const currentSession = useMemo(() => sessions.find(session => session.status === 'active') ?? sortedSessions.find(session => session.status === 'planned') ?? null, [sessions, sortedSessions])
   const detailSession = sessionDetailId ? sessions.find(session => session.id === sessionDetailId) ?? null : null
   const hasTrainingData = sessions.length > 0 || capabilities.length > 0 || weights.length > 0
@@ -217,23 +249,24 @@ export function App() {
   }
 
   const startSession = (id?: string) => commitSession(session => ({ ...session, status: 'active', startedAt: session.startedAt ?? new Date().toISOString() }), id)
-  const finishSession = async (id?: string) => {
+  const finishSession = async (id?: string, autoStop = false, autoStopAt?: string) => {
     const source = (id ? sessionsRef.current.find(session => session.id === id) : undefined) ?? sessionsRef.current.find(session => session.status === 'active')
     if (!source || source.status === 'completed') return
     try {
-      await commitSession(session => ({ ...session, status: 'completed', finishedAt: new Date().toISOString(), timerEndsAt: null }), source.id)
+      await commitSession(session => ({ ...session, status: 'completed', finishedAt: autoStopAt ?? new Date().toISOString(), timerEndsAt: null, holdTimer: null }), source.id)
       const program = meta.program
       if (source.programRef && program?.id === source.programRef.programId) {
-        const nextMeta = { ...meta, program: advanceProgram(program, source) }
+        const nextMeta = { ...meta, program: advanceProgram(program, source, new Date(), new Date(performedAt(source))) }
         await storage.saveMeta(nextMeta)
         setMeta(nextMeta)
       }
+      if (autoStop) setNotice(t('runner.autoStopped'))
     } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
   }
   const createProgram = async (input: LocalProgramInput) => {
     try {
       const program = buildLocalProgram(input, capabilities, settings.profile.weightKg)
-      const session = makeProgramSession(program, newId())
+      const session = fillStarterLoads(makeProgramSession(program, newId()), settings.profile.weightKg, capabilities, sessionsRef.current)
       const nextMeta = { ...meta, program }
       await storage.saveMeta(nextMeta)
       await storage.saveSession(session)
@@ -253,7 +286,7 @@ export function App() {
         await storage.saveMeta({ ...meta, program })
         setMeta({ ...meta, program })
       }
-      const session = makeProgramSession(program, newId())
+      const session = fillStarterLoads(makeProgramSession(program, newId()), settings.profile.weightKg, capabilities, sessionsRef.current)
       await storage.saveSession(session)
       const next = [session, ...sessionsRef.current]
       sessionsRef.current = next; setSessions(next); setRunnerId(session.id); setScreen('runner')
@@ -315,7 +348,7 @@ export function App() {
       {iosGuide && <aside class="install-banner"><div><p class="eyebrow">{t('install.title')}</p><p>{t('install.body')}</p><ol><li>{t('install.step1')}</li><li>{t('install.step2')}</li><li>{t('install.step3')}</li></ol></div><button class="icon-button" aria-label={t('install.dismiss')} onClick={() => { setIosGuide(false); void updateSettings({ ...settings, iosInstallDismissed: true }) }}><Icon name="close" /></button></aside>}
       {backupDue && <aside class="backup-banner"><span>{t('install.reminder')}</span><button class="text-button" onClick={() => { navigate('settings'); void exportData(false) }}>{t('install.backupNow')} <Icon name="arrow" /></button></aside>}
 
-      {screen === 'home' && <HomeScreen sessions={sessions} currentSession={currentSession} program={meta.program ?? null} onGenerate={() => navigate('generate')} onStartProgram={() => void startNextProgramWorkout()} onContinue={() => { setRunnerId(currentSession?.id ?? null); navigate('runner') }} />}
+      {screen === 'home' && <HomeScreen sessions={sessions} currentSession={currentSession} program={meta.program ?? null} onGenerate={() => navigate('generate')} onStartProgram={() => void startNextProgramWorkout()} onContinue={() => { setRunnerId(currentSession?.id ?? null); navigate('runner') }} onOpenWeekHistory={() => { setHistoryWeekOnly(true); navigate('history') }} />}
       {screen === 'generate' && <GenerateScreen settings={settings} capabilities={capabilities} sessions={sessions} program={meta.program ?? null} onCreateProgram={createProgram} onPlan={async (input, apiKey, refineNext) => {
         try {
           const nextSettings = apiKey === settings.apiKey ? settings : { ...settings, apiKey }
@@ -331,16 +364,17 @@ export function App() {
           const existingSlotSession = programRef ? sessionsRef.current.find(session => session.status === 'planned' && session.programRef?.programId === programRef.programId && session.programRef.slotIndex === programRef.slotIndex) : undefined
           const session: WorkoutSession = existingSlotSession
             ? { ...existingSlotSession, workout: result.workout, usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
-            : { id: newId(), status: 'planned', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null, timerEndsAt: null,
+            : { id: newId(), status: 'planned', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null, timerEndsAt: null, holdTimer: null,
               workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel }, ...(programRef ? { programRef } : {}) }
           if (program) {
             const nextMeta = { ...meta, program }
             await storage.saveMeta(nextMeta)
             setMeta(nextMeta)
           }
-          await storage.saveSession(session)
-          const next = existingSlotSession ? sessionsRef.current.map(item => item.id === session.id ? session : item) : [session, ...sessionsRef.current]
-          sessionsRef.current = next; setSessions(next); setRunnerId(session.id); setScreen('runner')
+          const preparedSession = fillStarterLoads(session, nextSettings.profile.weightKg, capabilities, sessionsRef.current)
+          await storage.saveSession(preparedSession)
+          const next = existingSlotSession ? sessionsRef.current.map(item => item.id === preparedSession.id ? preparedSession : item) : [preparedSession, ...sessionsRef.current]
+          sessionsRef.current = next; setSessions(next); setRunnerId(preparedSession.id); setScreen('runner')
           return { ok: true as const, usage: result.usage }
         } catch (error) {
           if (error instanceof CoachError) return { ok: false as const, kind: error.kind, message: error.message }
@@ -348,30 +382,29 @@ export function App() {
         }
       }} />}
       {screen === 'runner' && <RunnerScreen session={sessions.find(item => item.id === runnerId) ?? currentSession} settings={settings} onStart={startSession} onFinish={finishSession} mutate={commitSession} onApplyUpdates={applyCapabilityUpdates} onHome={() => navigate('home')} />}
-      {screen === 'history' && <HistoryScreen sessions={sortedSessions} weights={weights} units={settings.units} detail={detailSession} onOpen={id => setSessionDetailId(id)} onClose={() => setSessionDetailId(null)} onRemove={removeSession} />}
+      {screen === 'history' && <HistoryScreen sessions={sortedSessions} weights={weights} units={settings.units} detail={detailSession} weekOnly={historyWeekOnly} onShowAll={() => setHistoryWeekOnly(false)} onOpen={id => setSessionDetailId(id)} onClose={() => setSessionDetailId(null)} onStart={id => { void startSession(id); setRunnerId(id); setSessionDetailId(null); navigate('runner') }} onRemove={removeSession} />}
       {screen === 'settings' && <SettingsScreen settings={settingsDraft} setDraft={setSettingsDraft} capabilities={capabilities} meta={meta} persistState={persistState} storageEstimate={storageEstimate} onSave={updateSettings} onRecordWeight={logCurrentWeight} onSaveCapability={saveCapability} onRemoveCapability={removeCapability} onExport={exportData} onImportClick={() => fileInput.current?.click()} />}
     </main>
 
     <input ref={fileInput} type="file" accept="application/json,.json" class="visually-hidden" onChange={importData} aria-label={t('settings.import')} />
     <nav class="bottom-nav" aria-label={t('app.navigation')}>
-      {navItems.map(item => <button key={item.id} class={`nav-item ${screen === item.id ? 'active' : ''}`} aria-label={t(`app.${item.key}` as TranslationKey)} aria-current={screen === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>
+      {navItems.map(item => <button key={item.id} class={`nav-item ${screen === item.id ? 'active' : ''}`} aria-label={t(`app.${item.key}` as TranslationKey)} aria-current={screen === item.id ? 'page' : undefined} onClick={() => { setHistoryWeekOnly(false); navigate(item.id) }}>
         <Icon name={item.icon} /><span>{t(`app.${item.key}` as TranslationKey)}</span>
       </button>)}
     </nav>
   </div>
 }
 
-function HomeScreen({ sessions, currentSession, program, onGenerate, onStartProgram, onContinue }: { sessions: WorkoutSession[]; currentSession: WorkoutSession | null; program: TrainingProgram | null; onGenerate: () => void; onStartProgram: () => void; onContinue: () => void }) {
-  const completed = sessions.filter(session => session.status === 'completed').sort((a, b) => (b.finishedAt ?? b.createdAt).localeCompare(a.finishedAt ?? a.createdAt))
+function HomeScreen({ sessions, currentSession, program, onGenerate, onStartProgram, onContinue, onOpenWeekHistory }: { sessions: WorkoutSession[]; currentSession: WorkoutSession | null; program: TrainingProgram | null; onGenerate: () => void; onStartProgram: () => void; onContinue: () => void; onOpenWeekHistory: () => void }) {
+  const completed = sessions.filter(session => session.status === 'completed').sort((a, b) => performedAt(b).localeCompare(performedAt(a)))
   const last = completed[0]
-  const weekStart = Date.now() - 7 * 86400000
-  const thisWeek = completed.filter(session => new Date(session.finishedAt ?? '').getTime() >= weekStart).length
+  const thisWeek = completed.filter(session => weekKey(new Date(performedAt(session))) === weekKey()).length
   const trained = completed.reduce((sum, session) => sum + minutesBetween(session.startedAt, session.finishedAt), 0)
   return <section class="home-screen">
     <div class="hero-grid"><div class="hero-copy"><p class="eyebrow">{t('home.eyebrow')}</p><h1>{t('home.title')}</h1><p class="hero-description">{t('home.description')}</p>
       {currentSession ? <div class="session-callout"><div class="callout-icon"><Icon name={currentSession.status === 'active' ? 'clock' : 'check'} /></div><div><strong>{currentSession.status === 'active' ? t('home.activeSession') : t('home.planned')}</strong><span>{currentSession.workout.title}</span></div><button class="round-arrow" aria-label={currentSession.status === 'active' ? t('home.continue') : t('home.openPlan')} onClick={onContinue}><Icon name="arrow" /></button></div> : program ? <div class="program-home-card"><p class="eyebrow">{t('program.weeklyPlan')}</p><h2>{program.title}</h2><p>{t('program.sessionsPerWeek', { count: program.sessionsPerWeek })}</p><div class="program-home-progress"><div><span>{t('program.thisWeek')}</span><strong>{formatNumber(program.weekOf === weekKey() ? program.sessionsCompletedThisWeek : 0)}/{formatNumber(program.sessionsPerWeek)}</strong></div><span>{t('program.nextWorkout')} · {slotLabel(program)}</span></div><button class="button button-primary full-width" onClick={onStartProgram}>{t('program.startNext')}<Icon name="arrow" /></button><button class="text-button program-rebuild" onClick={onGenerate}>{t('program.changePlan')}</button></div> : <button class="button button-primary hero-cta" onClick={onGenerate}>{t('home.newWorkout')}<Icon name="arrow" /></button>}
     </div><div class="hero-art" aria-hidden="true"><div class="art-orbit orbit-one" /><div class="art-orbit orbit-two" /><div class="art-disc"><span class="art-line line-one" /><span class="art-line line-two" /><span class="art-center">F</span></div><div class="art-label"><Icon name="spark" /><span>{t('home.ready')}</span></div></div></div>
-    <div class="stats-grid"><div class="stat-card stat-feature"><span class="stat-kicker">{t('home.week')}</span><strong>{formatNumber(thisWeek)}<small>{t('home.weekSessions')}</small></strong><div class="stat-bars" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} style={{ height: `${18 + ((thisWeek + i * 7) % 5) * 9}px`, opacity: i < thisWeek ? 1 : .28 }} />)}</div></div><div class="stat-card"><span class="stat-kicker">{t('home.sessions')}</span><strong>{formatNumber(completed.length)}</strong><span class="stat-foot">{t('home.consistency')}</span></div><div class="stat-card"><span class="stat-kicker">{t('home.minutesTrained')}</span><strong>{formatNumber(trained)}<small>{t('app.minutes')}</small></strong><span class="stat-foot">{last ? `${t('home.lastSession')} · ${formatDate(last.finishedAt)}` : t('home.noSessions')}</span></div></div>
+    <div class="stats-grid"><button class="stat-card stat-feature stat-card-button" onClick={onOpenWeekHistory} aria-label={t('home.openWeekHistory')}><span class="stat-kicker">{t('home.week')}</span><strong>{formatNumber(thisWeek)}<small>{t('home.weekSessions')}</small></strong><span class="stat-foot">{t('home.viewWorkouts')}</span><div class="stat-bars" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} style={{ height: `${18 + ((thisWeek + i * 7) % 5) * 9}px`, opacity: i < thisWeek ? 1 : .28 }} />)}</div></button><div class="stat-card"><span class="stat-kicker">{t('home.sessions')}</span><strong>{formatNumber(completed.length)}</strong><span class="stat-foot">{t('home.consistency')}</span></div><div class="stat-card"><span class="stat-kicker">{t('home.minutesTrained')}</span><strong>{formatNumber(trained)}<small>{t('app.minutes')}</small></strong><span class="stat-foot">{last ? `${t('home.lastSession')} · ${formatDate(performedAt(last))}` : t('home.noSessions')}</span></div></div>
     {!currentSession && <section class="quote-card"><span class="quote-orb" aria-hidden="true">✳</span><p>{t('home.trainingNote')}</p><span class="quote-mark">{t('home.quoteMark')}</span></section>}
     {currentSession && <button class="button button-secondary full-width mobile-cta" onClick={onGenerate}>{t('home.newWorkout')}<Icon name="arrow" /></button>}
   </section>
@@ -432,7 +465,7 @@ function GenerateScreen({ settings, capabilities, sessions, program, onPlan, onC
 }
 
 function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpdates, onHome }: {
-  session: WorkoutSession | null; settings: AppSettings; onStart: (id: string) => unknown; onFinish: (id: string) => unknown
+  session: WorkoutSession | null; settings: AppSettings; onStart: (id: string) => unknown; onFinish: (id: string, autoStop?: boolean, autoStopAt?: string) => unknown
   mutate: (transform: (current: WorkoutSession) => WorkoutSession, id?: string) => unknown; onApplyUpdates: (id: string) => Promise<void>; onHome: () => void
 }) {
   const [now, setNow] = useState(Date.now())
@@ -442,8 +475,31 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   const planScrollY = useRef(0)
   const lockRef = useRef<{ release: () => Promise<void> } | null>(null)
   const beepedRef = useRef<string | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const lastActivityRef = useRef(Date.now())
+  const finishRef = useRef(onFinish)
+  finishRef.current = onFinish
   useEffect(() => { const interval = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(interval) }, [])
   const timerLeft = secondsRemaining(session?.timerEndsAt ?? null, now)
+  const holdTimer = session?.holdTimer ?? null
+  const holdElapsed = holdTimer ? Math.max(0, Math.floor((now - holdTimer.startedAt) / 1000)) : 0
+  const holdRemaining = holdTimer ? Math.max(0, holdTimer.targetSeconds - holdElapsed) : 0
+  const primeAudio = () => {
+    const Audio = window.AudioContext
+    if (!Audio) return
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') audioContextRef.current = new Audio()
+    void audioContextRef.current.resume().catch(() => undefined)
+  }
+  const playSignal = () => {
+    primeAudio()
+    const ctx = audioContextRef.current
+    if (!ctx) return
+    try {
+      const osc = ctx.createOscillator(); const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 740; gain.gain.value = .08
+      osc.start(); osc.stop(ctx.currentTime + .28); osc.onended = () => { osc.disconnect(); gain.disconnect() }
+    } catch { /* Sound is optional. */ }
+  }
   useEffect(() => {
     if (session?.status !== 'active') return
     const nav = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } }
@@ -462,11 +518,31 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     if (beepedRef.current === key) return
     beepedRef.current = key
     navigator.vibrate?.([160, 80, 160])
-    try {
-      const Audio = window.AudioContext
-      if (Audio) { const ctx = new Audio(); const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 740; gain.gain.value = .08; osc.start(); osc.stop(ctx.currentTime + .24); osc.onended = () => void ctx.close() }
-    } catch { /* sound is optional */ }
+    playSignal()
   }, [session?.id, session?.timerEndsAt, timerLeft])
+  useEffect(() => {
+    if (!holdTimer || holdElapsed < holdTimer.targetSeconds) return
+    const key = `hold:${session?.id}:${holdTimer.startedAt}`
+    if (beepedRef.current === key) return
+    beepedRef.current = key
+    navigator.vibrate?.([180, 90, 180])
+    playSignal()
+  }, [session?.id, holdTimer?.startedAt, holdTimer?.targetSeconds, holdElapsed])
+  useEffect(() => {
+    if (session?.status !== 'active') return
+    lastActivityRef.current = Date.now()
+    const resumeIdleWindow = () => { lastActivityRef.current = Date.now() }
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') { lastActivityRef.current = Date.now(); return }
+      if (Date.now() - lastActivityRef.current >= 60 * 60 * 1000) {
+        window.clearInterval(interval)
+        void finishRef.current(session.id, true, new Date(lastActivityRef.current).toISOString())
+      }
+    }, 15000)
+    document.addEventListener('visibilitychange', resumeIdleWindow)
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', resumeIdleWindow) }
+  }, [session?.id, session?.status])
+  useEffect(() => () => { if (audioContextRef.current) void audioContextRef.current.close() }, [])
 
   if (!session) return <section class="empty-screen"><span class="empty-mark"><Icon name="spark" /></span><p class="eyebrow">{t('runner.eyebrow')}</p><h1>{t('home.noSessions')}</h1><button class="button button-primary" onClick={onHome}>{t('app.today')}<Icon name="arrow" /></button></section>
 
@@ -480,7 +556,39 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     mutate(current => ({ ...current, workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== blockIndex ? block : ({ ...block, items: block.items.map((item, ii) => ii === itemIndex ? transform(item) : item) })) }, ...(timer === undefined ? {} : { timerEndsAt: timer }) }), session.id)
   }
   const adjustSet = (blockIndex: number, itemIndex: number, setIndex: number, patch: { reps?: number; loadKg?: number | null }) => byId(blockIndex, itemIndex, item => ({ ...item, log: item.log.map((set, index) => index === setIndex ? { ...set, ...patch } : set) }))
+  const startHoldTimer = (blockIndex: number, itemIndex: number, setIndex: number) => {
+    primeAudio()
+    const targetSeconds = session.workout.blocks[blockIndex].items[itemIndex].log[setIndex].reps
+    const startedAt = Date.now()
+    mutate(current => ({ ...current, status: 'active', startedAt: current.startedAt ?? new Date(startedAt).toISOString(), timerEndsAt: null,
+      holdTimer: { blockIndex, itemIndex, setIndex, startedAt, targetSeconds } }), session.id)
+  }
+  const stopHoldTimer = () => {
+    if (!holdTimer) return
+    const completedAt = new Date().toISOString()
+    const actualSeconds = Math.max(1, Math.floor((Date.now() - holdTimer.startedAt) / 1000))
+    mutate(current => {
+      const active = current.holdTimer
+      if (!active) return current
+      const rest = current.workout.blocks[active.blockIndex]?.items[active.itemIndex]?.rest ?? 0
+      return {
+        ...current,
+        holdTimer: null,
+        timerEndsAt: rest > 0 ? Date.now() + rest * 1000 : null,
+        workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== active.blockIndex ? block : ({
+          ...block, items: block.items.map((value, ii) => ii !== active.itemIndex ? value : ({
+            ...value, log: value.log.map((set, si) => si !== active.setIndex ? set : { ...set, done: true, reps: actualSeconds, completedAt }),
+          })),
+        })) },
+      }
+    }, session.id)
+  }
+  const adjustHoldTarget = (delta: number) => {
+    if (!holdTimer) return
+    mutate(current => current.holdTimer ? { ...current, holdTimer: { ...current.holdTimer, targetSeconds: Math.max(1, current.holdTimer.targetSeconds + delta) } } : current, session.id)
+  }
   const toggleSet = (blockIndex: number, itemIndex: number, setIndex: number) => {
+    primeAudio()
     const item = session.workout.blocks[blockIndex].items[itemIndex]
     const entry = item.log[setIndex]
     const nextDone = !entry.done
@@ -491,6 +599,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
       status: current.status === 'planned' ? 'active' : current.status,
       startedAt: current.status === 'planned' ? completedAt : current.startedAt,
       timerEndsAt: timer,
+      holdTimer: null,
       workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== blockIndex ? block : ({
         ...block, items: block.items.map((value, ii) => ii !== itemIndex ? value : ({
           ...value, log: value.log.map((set, index) => index === setIndex ? { ...set, done: nextDone, completedAt: nextDone ? completedAt : null } : set),
@@ -500,6 +609,11 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   }
   const skipRest = () => mutate(current => ({ ...current, timerEndsAt: null }), session.id)
   const adjustTimer = (delta: number) => mutate(current => ({ ...current, timerEndsAt: adjustEndTime(current.timerEndsAt, delta) }), session.id)
+  const timerDock = session.status === 'active' && (holdTimer !== null || session.timerEndsAt !== null) ? <div class={`rest-dock ${holdTimer ? 'hold-timer-dock' : ''}`} role="timer" aria-label={holdTimer ? `${t('runner.holdTimer')} ${formatTimer(holdElapsed, currentLanguage())}` : `${t('runner.timer')} ${formatTimer(timerLeft, currentLanguage())}`}>
+    <div class="rest-label"><span class="timer-pulse" /><span>{holdTimer ? (holdRemaining === 0 ? t('runner.holdTimerDone') : t('runner.holdTimer')) : timerLeft === 0 ? t('runner.timerDone') : t('runner.timer')}</span></div>
+    <strong class="timer-value">{holdTimer ? <>{formatTimer(holdElapsed, currentLanguage())}<small>/ {formatTimer(holdTimer.targetSeconds, currentLanguage())}</small></> : formatTimer(timerLeft, currentLanguage())}</strong>
+    <div class="timer-controls">{holdTimer ? <><button aria-label={t('runner.holdMinus5')} onClick={() => adjustHoldTarget(-5)}><Icon name="minus" /><span>5</span></button><button aria-label={t('runner.holdPlus5')} onClick={() => adjustHoldTarget(5)}><Icon name="plus" /><span>5</span></button><button class="timer-skip" onClick={stopHoldTimer}>{t('runner.stopHold')}</button></> : <><button aria-label={t('runner.minus15')} onClick={() => adjustTimer(-15)}><Icon name="minus" /><span>15</span></button><button aria-label={t('runner.add15')} onClick={() => adjustTimer(15)}><Icon name="plus" /><span>15</span></button><button class="timer-skip" onClick={skipRest}>{t('runner.skipRest')}</button></>}</div>
+  </div> : null
   const openExerciseGuide = (id: string, name: string, note: string | null) => {
     planScrollY.current = window.scrollY
     setExerciseDetail({ id, name, note })
@@ -515,7 +629,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     const guide = exerciseGuideFor(exerciseDetail.id)
     const frames = exerciseImages[exerciseDetail.id as keyof typeof exerciseImages]?.frames ?? []
     const fallbackSteps = [t('runner.customGuideSetup'), t('runner.customGuideControl'), t('runner.guideSafety')]
-    return <section class="exercise-detail-screen">
+    return <section class="exercise-detail-screen" onPointerDown={() => { lastActivityRef.current = Date.now() }} onKeyDown={() => { lastActivityRef.current = Date.now() }} onWheel={() => { lastActivityRef.current = Date.now() }}>
       <button class="back-link" onClick={returnToPlan}><span>←</span>{t('runner.backToPlan')}</button>
       <p class="eyebrow">{t('runner.exerciseGuide')}</p>
       <h1>{exerciseDetail.name}</h1>
@@ -527,13 +641,13 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
       {exerciseDetail.note && <aside class="exercise-guide-focus"><span>{t('runner.coachNote')}</span><p>{exerciseDetail.note}</p></aside>}
       <p class="exercise-guide-safety">{t('runner.guideSafety')}</p>
       <button class="button button-primary full-width runner-bottom-button" onClick={returnToPlan}>{t('runner.backToPlan')}<Icon name="arrow" /></button>
-      {session.status === 'active' && session.timerEndsAt !== null && <div class="rest-dock" role="timer" aria-label={`${t('runner.timer')} ${formatTimer(timerLeft, currentLanguage())}`}><div class="rest-label"><span class="timer-pulse" /><span>{timerLeft === 0 ? t('runner.timerDone') : t('runner.timer')}</span></div><strong class="timer-value">{formatTimer(timerLeft, currentLanguage())}</strong><div class="timer-controls"><button aria-label={t('runner.minus15')} onClick={() => adjustTimer(-15)}><Icon name="minus" /><span>15</span></button><button aria-label={t('runner.add15')} onClick={() => adjustTimer(15)}><Icon name="plus" /><span>15</span></button><button class="timer-skip" onClick={skipRest}>{t('runner.skipRest')}</button></div></div>}
+      {timerDock}
     </section>
   }
 
   if (session.status === 'completed') return <section class="finish-summary-screen"><div class="success-emblem"><Icon name="check" /></div><p class="eyebrow">{t('runner.finishTitle')}</p><h1>{session.workout.title}</h1><p class="summary-lede">{t('runner.finishBody')}</p><div class="finish-stats"><div><strong>{completionRate(session)}%</strong><span>{t('runner.completion')}</span></div><div><strong>{elapsed} <small>{t('app.minutes')}</small></strong><span>{t('history.totalTime')}</span></div><div><strong>{session.rpe ?? '—'}/10</strong><span>{t('history.rpe')}</span></div></div>{session.note && <blockquote class="finish-note">“{session.note}”</blockquote>}<button class="button button-secondary full-width" onClick={onHome}>{t('app.today')}<Icon name="arrow" /></button></section>
 
-  return <section class="runner-screen">
+  return <section class="runner-screen" onPointerDown={() => { lastActivityRef.current = Date.now() }} onKeyDown={() => { lastActivityRef.current = Date.now() }} onWheel={() => { lastActivityRef.current = Date.now() }}>
     <header class="runner-head"><div><p class="eyebrow">{session.status === 'active' ? t('runner.eyebrow') : t('history.planned')}</p><h1>{session.workout.title}</h1></div><div class="runner-head-time"><strong>{elapsed}</strong><span>{t('app.minutes')}</span></div></header>
     {session.status === 'planned' && <div class="runner-start-panel"><p>{t('runner.plannedNotice')}</p><button class="button button-primary" onClick={() => void onStart(session.id)}>{t('runner.start')}<Icon name="arrow" /></button></div>}
     <div class="runner-progress"><div class="progress-label"><span>{t('runner.progress')}</span><strong>{formatNumber(progress)}%</strong></div><div class="progress-track"><i style={{ width: `${progress}%` }} /></div><div class="progress-meta"><span>{formatNumber(done)}/{formatNumber(planned)} {t('runner.setsDone')}</span>{session.status === 'active' && <span>{t('runner.elapsed')} · {formatNumber(elapsed)} {t('app.minutes')}</span>}</div></div>
@@ -556,22 +670,27 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
           {!item.skipped && <div class="set-list">{item.log.map((set, si) => <div class={`set-row ${set.done ? 'set-done' : ''}`} key={si}><div class="set-number">{new Intl.NumberFormat(currentLanguage(), { minimumIntegerDigits: 2, useGrouping: false }).format(si + 1)}</div><div class="set-target">{t('app.setCount', { count: si + 1 })}<span>{formatNumber(set.reps)} {item.u === 'r' ? t('app.reps') : t('app.seconds')}</span></div>
             <div class="set-steppers"><div class="stepper" aria-label={t('runner.adjustReps')}><button aria-label={`${t('runner.adjustReps')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: Math.max(0, set.reps - (item.u === 's' ? 5 : 1)) })}><Icon name="minus" /></button><strong>{set.reps}</strong><button aria-label={`${t('runner.adjustReps')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: set.reps + (item.u === 's' ? 5 : 1) })}><Icon name="plus" /></button></div>
               {exercise?.loadable && <div class="stepper load-stepper" aria-label={t('runner.adjustLoad')}><button aria-label={`${t('runner.adjustLoad')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { loadKg: Math.max(0, (set.loadKg ?? 0) - toKg(settings.units === 'lb' ? 5 : 2.5, settings.units)) })}><Icon name="minus" /></button><strong>{formatLoad(set.loadKg, settings.units)}<small>{settings.units}</small></strong><button aria-label={`${t('runner.adjustLoad')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { loadKg: (set.loadKg ?? 0) + toKg(settings.units === 'lb' ? 5 : 2.5, settings.units) })}><Icon name="plus" /></button></div>}
-            </div><button class={`complete-set ${set.done ? 'is-done' : ''}`} aria-pressed={set.done} aria-label={`${exerciseLabel}, ${t('app.setCount', { count: si + 1 })}, ${t(set.done ? 'runner.completed' : 'runner.markDone')}`} onClick={() => toggleSet(bi, ii, si)}>{set.done ? <Icon name="check" /> : <span />}</button></div>)}</div>}
+            </div><button class={`complete-set ${set.done ? 'is-done' : ''}`} disabled={session.status !== 'active' || item.u === 's' || holdTimer !== null} aria-pressed={set.done} aria-label={`${exerciseLabel}, ${t('app.setCount', { count: si + 1 })}, ${t(set.done ? 'runner.completed' : 'runner.markDone')}`} onClick={() => toggleSet(bi, ii, si)}>{set.done ? <Icon name="check" /> : <span />}</button></div>)}</div>}
+          {session.status === 'active' && item.u === 's' && !item.skipped && item.log.some(set => !set.done) && (() => {
+            const nextSetIndex = item.log.findIndex(set => !set.done)
+            return <div class="hold-start-row"><span>{t('runner.holdNextSet', { count: nextSetIndex + 1, seconds: item.log[nextSetIndex].reps })}</span><button disabled={holdTimer !== null} onClick={() => startHoldTimer(bi, ii, nextSetIndex)}><Icon name="clock" />{holdTimer ? t('runner.holdTimerRunning') : t('runner.startHold')}</button></div>
+          })()}
           {session.status === 'active' && <div class="exercise-actions"><button class="quiet-action" onClick={() => setSwapping(swapping === key ? null : key)} disabled={item.skipped || item.log.some(set => set.done) || replacements.length === 0}>{t('runner.swap')}</button><button class="quiet-action quiet-skip" onClick={() => byId(bi, ii, value => ({ ...value, skipped: true }))} disabled={item.skipped}>{t(item.skipped ? 'runner.skipped' : 'runner.skipExercise')}</button></div>}
           {swapping === key && replacements.length > 0 && <div class="swap-panel"><p>{t('runner.swapHint')}</p>{replacements.map(id => <button key={id} class="swap-choice" onClick={() => { const target = exerciseById.get(id); if (!target) return; byId(bi, ii, value => ({ ...value, ex: id, name: null, u: target.type === 'time' ? 's' : 'r', load: null, tgt: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, log: Array.from({ length: value.sets }, () => ({ done: false, reps: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, loadKg: null, completedAt: null })), skipped: false })); setSwapping(null) }}>{nameFor(id)}<Icon name="arrow" /></button>)}</div>}
         </article>
       })}
     </section>)}</div>
-    {session.status === 'active' && !finishing && <button class="button button-secondary full-width runner-bottom-button" onClick={() => { setFinishing(true); if (session.timerEndsAt !== null) void mutate(current => ({ ...current, timerEndsAt: null }), session.id) }}>{t('runner.finish')}<Icon name="check" /></button>}
+    {session.status === 'active' && !finishing && <button class="button button-secondary full-width runner-bottom-button" disabled={holdTimer !== null} onClick={() => { setFinishing(true); if (session.timerEndsAt !== null) void mutate(current => ({ ...current, timerEndsAt: null }), session.id) }}>{t('runner.finish')}<Icon name="check" /></button>}
     {session.status === 'active' && finishing && <div class="finish-form-card"><p class="eyebrow">{t('runner.finishTitle')}</p><h2>{t('runner.finishBody')}</h2><div class="finish-stats compact"><div><strong>{formatNumber(completionRate(session))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(elapsed)} {t('app.minutes')}</strong><span>{t('history.totalTime')}</span></div></div><div class="form-group"><span>{t('runner.rpe')}</span><div class="rpe-labels"><small>{t('runner.rpeLow')}</small><small>{t('runner.rpeHigh')}</small></div><div class="rpe-scale">{Array.from({ length: 10 }, (_, i) => i + 1).map(value => <button type="button" class={session.rpe === value ? 'selected' : ''} aria-label={`${t('runner.rpe')} ${formatNumber(value)}`} aria-pressed={session.rpe === value} onClick={() => mutate(current => ({ ...current, rpe: value }), session.id)}>{formatNumber(value)}</button>)}</div></div><label class="form-group"><span>{t('runner.sessionNote')}</span><textarea class="text-input textarea" value={session.note} maxlength={600} placeholder={t('runner.notePlaceholder')} onInput={event => mutate(current => ({ ...current, note: (event.currentTarget as HTMLTextAreaElement).value }), session.id)} /></label>
       {session.workout.cap_updates.length > 0 && <div class="suggestion-box"><p>{t('runner.capSuggestion')}</p>{session.workout.cap_updates.map(update => <span key={update.ex}>{nameFor(update.ex)} · {update.max !== null ? `${update.max} ${t('app.reps')}` : `${formatLoad(update.load, settings.units)} ${settings.units} × ${update.reps}`}</span>)}<button class="text-button" onClick={() => void onApplyUpdates(session.id)}>{t('runner.applySuggestions')}<Icon name="arrow" /></button></div>}
       <button class="button button-primary full-width" onClick={() => void onFinish(session.id)}>{t('runner.finish')}<Icon name="check" /></button><button class="text-button center-button" onClick={() => setFinishing(false)}>{t('app.cancel')}</button></div>}
-    {session.status === 'active' && session.timerEndsAt !== null && <div class="rest-dock" role="timer" aria-label={`${t('runner.timer')} ${formatTimer(timerLeft, currentLanguage())}`}><div class="rest-label"><span class="timer-pulse" /><span>{timerLeft === 0 ? t('runner.timerDone') : t('runner.timer')}</span></div><strong class="timer-value">{formatTimer(timerLeft, currentLanguage())}</strong><div class="timer-controls"><button aria-label={t('runner.minus15')} onClick={() => adjustTimer(-15)}><Icon name="minus" /><span>15</span></button><button aria-label={t('runner.add15')} onClick={() => adjustTimer(15)}><Icon name="plus" /><span>15</span></button><button class="timer-skip" onClick={skipRest}>{t('runner.skipRest')}</button></div></div>}
+    {timerDock}
   </section>
 }
 
-function HistoryScreen({ sessions, weights, units, detail, onOpen, onClose, onRemove }: { sessions: WorkoutSession[]; weights: WeightEntry[]; units: 'kg' | 'lb'; detail: WorkoutSession | null; onOpen: (id: string) => void; onClose: () => void; onRemove: (id: string) => void }) {
-  const completed = sessions.filter(session => session.status === 'completed')
+function HistoryScreen({ sessions, weights, units, detail, weekOnly, onShowAll, onOpen, onClose, onStart, onRemove }: { sessions: WorkoutSession[]; weights: WeightEntry[]; units: 'kg' | 'lb'; detail: WorkoutSession | null; weekOnly: boolean; onShowAll: () => void; onOpen: (id: string) => void; onClose: () => void; onStart: (id: string) => void; onRemove: (id: string) => void }) {
+  const completed = sessions.filter(session => session.status === 'completed').sort((a, b) => performedAt(a).localeCompare(performedAt(b)))
+  const visibleSessions = weekOnly ? sessions.filter(session => session.status === 'completed' && weekKey(new Date(performedAt(session))) === weekKey()) : sessions
   const allIds = [...new Set(completed.flatMap(session => session.workout.blocks.flatMap(block => block.items.map(item => item.ex))))]
   const [selectedExercise, setSelectedExercise] = useState(allIds[0] ?? '')
   useEffect(() => { if (!allIds.includes(selectedExercise)) setSelectedExercise(allIds[0] ?? '') }, [sessions.length])
@@ -579,7 +698,7 @@ function HistoryScreen({ sessions, weights, units, detail, onOpen, onClose, onRe
     const items = session.workout.blocks.flatMap(block => block.items).filter(item => item.ex === selectedExercise)
     if (!items.length) return []
     const best = Math.max(...items.flatMap(item => item.log.filter(set => set.done).map(set => (set.loadKg ?? 1) * set.reps)), 0)
-    return [{ date: session.finishedAt ?? session.createdAt, value: best }]
+    return [{ date: performedAt(session), value: best }]
   })
   const max = Math.max(1, ...trendData.map(point => point.value))
   const min = Math.min(0, ...trendData.map(point => point.value))
@@ -598,13 +717,13 @@ function HistoryScreen({ sessions, weights, units, detail, onOpen, onClose, onRe
     return `${x},${y}`
   }).join(' ')
 
-  if (detail) return <section class="history-detail"><button class="back-link" onClick={onClose}><span>←</span>{t('app.back')}</button><p class="eyebrow">{formatDate(detail.finishedAt ?? detail.createdAt)}</p><h1>{detail.workout.title}</h1><p class="detail-status">{t(`history.${detail.status}` as TranslationKey)}</p><div class="finish-stats"><div><strong>{formatNumber(completionRate(detail))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(minutesBetween(detail.startedAt, detail.finishedAt))} <small>{t('app.minutes')}</small></strong><span>{t('history.totalTime')}</span></div><div><strong>{detail.rpe === null ? '—' : formatNumber(detail.rpe)}/10</strong><span>{t('history.rpe')}</span></div></div>{detail.note && <blockquote class="finish-note">“{detail.note}”</blockquote>}<div class="detail-exercises">{detail.workout.blocks.map((block, bi) => <div class="detail-block" key={bi}><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2>{block.items.map((item, ii) => <div class="detail-exercise" key={`${bi}-${ii}`}><span>{exerciseText(item.ex).name}</span><strong>{formatNumber(item.log.filter(set => set.done).length)}/{formatNumber(item.sets)} {t('app.sets')}</strong><small>{item.log.filter(set => set.done).map(set => `${formatNumber(set.reps)}${set.loadKg !== null ? ` · ${formatLoad(set.loadKg, units)} ${units}` : ''}`).join(' / ')}</small></div>)}</div>)}</div><div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{detail.workout.coach}</strong></div></div></section>
+  if (detail) return <section class="history-detail"><button class="back-link" onClick={onClose}><span>←</span>{t('app.back')}</button><p class="eyebrow">{formatDate(performedAt(detail))}</p><h1>{detail.workout.title}</h1><p class="detail-status">{t(`history.${detail.status}` as TranslationKey)}</p>{detail.status === 'planned' && <button class="button button-primary history-detail-start" onClick={() => onStart(detail.id)}>{t('runner.start')}<Icon name="arrow" /></button>}<div class="finish-stats"><div><strong>{formatNumber(completionRate(detail))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(minutesBetween(detail.startedAt, detail.finishedAt))} <small>{t('app.minutes')}</small></strong><span>{t('history.totalTime')}</span></div><div><strong>{detail.rpe === null ? '—' : formatNumber(detail.rpe)}/10</strong><span>{t('history.rpe')}</span></div></div>{detail.note && <blockquote class="finish-note">“{detail.note}”</blockquote>}<div class="detail-exercises">{detail.workout.blocks.map((block, bi) => <div class="detail-block" key={bi}><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2>{block.items.map((item, ii) => <div class="detail-exercise" key={`${bi}-${ii}`}><span>{exerciseText(item.ex).name}</span><strong>{formatNumber(item.log.filter(set => set.done).length)}/{formatNumber(item.sets)} {t('app.sets')}</strong><small>{item.log.filter(set => set.done).map(set => `${formatNumber(set.reps)}${set.loadKg !== null ? ` · ${formatLoad(set.loadKg, units)} ${units}` : ''}`).join(' / ')}</small></div>)}</div>)}</div><div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{detail.workout.coach}</strong></div></div></section>
 
-  return <section class="history-screen"><header class="section-intro"><p class="eyebrow">{t('history.eyebrow')}</p><h1>{t('history.title')}</h1><p>{t('history.description')}</p></header>
-    <div class="history-insight-row"><div class="insight-card"><span>{t('history.averageCompletion')}</span><strong>{formatNumber(summary.avg_completion)}<small>%</small></strong></div><div class="insight-card"><span>{t('history.weightTrend')}</span><strong>{weights.length ? `${formatLoad(weights.at(-1)?.weightKg ?? null, units)} ${units}` : '—'}</strong><small>{weights.at(-1) ? formatDate(weights.at(-1)!.date) : t('settings.never')}</small></div></div>
-    {weightTrend.length > 1 && <div class="chart-card"><div class="chart-head"><div><p class="eyebrow">{t('history.weightTrend')}</p><h2>{t('settings.weight')}</h2></div><span class="chart-foot">{units}</span></div><div class="chart-wrap"><svg viewBox="0 0 320 116" role="img" aria-label={t('history.weightTrend')}><path d="M18 24H302M18 59H302M18 94H302" class="chart-gridline" /><polyline points={weightPoints} class="chart-line" />{weightTrend.map((point, index) => { const [x, y] = weightPoints.split(' ')[index].split(','); return <circle key={point.id} cx={x} cy={y} r="4" class="chart-point" /> })}</svg></div><div class="chart-foot"><span>{formatDate(weightTrend[0].date)}</span><strong>{formatLoad(weightTrend.at(-1)!.weightKg, units)} {units}</strong><span>{formatDate(weightTrend.at(-1)!.date)}</span></div></div>}
-    {completed.length > 1 && <div class="chart-card"><div class="chart-head"><div><p class="eyebrow">{t('history.exerciseProgress')}</p><h2>{selectedExercise ? exerciseText(selectedExercise).name : t('history.selectExercise')}</h2></div><label class="visually-hidden" for="exercise-trend">{t('history.selectExercise')}</label><select class="chart-select" id="exercise-trend" value={selectedExercise} onChange={event => setSelectedExercise((event.currentTarget as HTMLSelectElement).value)}>{allIds.map(id => <option value={id} key={id}>{exerciseText(id).name}</option>)}</select></div>{trendData.length > 1 ? <><div class="chart-wrap"><svg viewBox="0 0 320 116" role="img" aria-label={`${exerciseText(selectedExercise).name} ${t(`history.trend${(summary.exercise[selectedExercise]?.trend ?? 'flat').charAt(0).toUpperCase()}${(summary.exercise[selectedExercise]?.trend ?? 'flat').slice(1)}` as TranslationKey)}`}><path d="M18 24H302M18 59H302M18 94H302" class="chart-gridline" /><polyline points={points} class="chart-line" />{trendData.map((point, index) => { const [x, y] = points.split(' ')[index].split(','); return <circle key={point.date} cx={x} cy={y} r="4" class="chart-point" /> })}</svg></div><div class="chart-foot"><span>{formatDate(trendData[0].date)}</span><strong>{t('history.best')}: {formatNumber(summary.exercise[selectedExercise]?.best ?? 0)}</strong><span>{formatDate(trendData.at(-1)!.date)}</span></div><p class="trend-pill">{t(`history.trend${(summary.exercise[selectedExercise]?.trend ?? 'flat').charAt(0).toUpperCase()}${(summary.exercise[selectedExercise]?.trend ?? 'flat').slice(1)}` as TranslationKey)}</p></> : <p class="field-hint">{t('history.noData')}</p>}</div>}
-    {sessions.length === 0 ? <div class="empty-history"><span class="empty-mark"><Icon name="history" /></span><h2>{t('history.emptyTitle')}</h2><p>{t('history.emptyBody')}</p></div> : <div class="session-list">{sessions.map(session => <article class="history-card" key={session.id}><button class="history-card-open" onClick={() => onOpen(session.id)}><div class="history-card-date"><span>{new Intl.DateTimeFormat(currentLanguage(), { weekday: 'short' }).format(new Date(session.createdAt))}</span><strong>{new Intl.DateTimeFormat(currentLanguage(), { day: '2-digit' }).format(new Date(session.createdAt))}</strong><small>{new Intl.DateTimeFormat(currentLanguage(), { month: 'short' }).format(new Date(session.createdAt))}</small></div><div class="history-card-main"><span class={`status-label status-${session.status}`}>{t(`history.${session.status}` as TranslationKey)}</span><h3>{session.workout.title}</h3><p>{formatNumber(session.workout.blocks.reduce((sum, block) => sum + block.items.length, 0))} {t('runner.exercise')} · {formatNumber(session.workout.est_min)} {t('app.minutes')}</p></div><div class="history-completion"><strong>{formatNumber(completionRate(session))}%</strong><Icon name="arrow" /></div></button><button class="remove-session" aria-label={`${t('history.removeWorkout')}: ${session.workout.title}`} title={t('history.removeWorkout')} onClick={() => onRemove(session.id)}><Icon name="trash" /></button></article>)}</div>}
+  return <section class="history-screen"><header class="section-intro"><p class="eyebrow">{t('history.eyebrow')}</p><h1>{t('history.title')}</h1><p>{t('history.description')}</p>{weekOnly && <div class="history-filter-row"><span>{t('history.thisWeekList')}</span><button class="text-button" onClick={onShowAll}>{t('history.showAll')}</button></div>}</header>
+    {!weekOnly && <div class="history-insight-row"><div class="insight-card"><span>{t('history.averageCompletion')}</span><strong>{formatNumber(summary.avg_completion)}<small>%</small></strong></div><div class="insight-card"><span>{t('history.weightTrend')}</span><strong>{weights.length ? `${formatLoad(weights.at(-1)?.weightKg ?? null, units)} ${units}` : '—'}</strong><small>{weights.at(-1) ? formatDate(weights.at(-1)!.date) : t('settings.never')}</small></div></div>}
+    {!weekOnly && weightTrend.length > 1 && <div class="chart-card"><div class="chart-head"><div><p class="eyebrow">{t('history.weightTrend')}</p><h2>{t('settings.weight')}</h2></div><span class="chart-foot">{units}</span></div><div class="chart-wrap"><svg viewBox="0 0 320 116" role="img" aria-label={t('history.weightTrend')}><path d="M18 24H302M18 59H302M18 94H302" class="chart-gridline" /><polyline points={weightPoints} class="chart-line" />{weightTrend.map((point, index) => { const [x, y] = weightPoints.split(' ')[index].split(','); return <circle key={point.id} cx={x} cy={y} r="4" class="chart-point" /> })}</svg></div><div class="chart-foot"><span>{formatDate(weightTrend[0].date)}</span><strong>{formatLoad(weightTrend.at(-1)!.weightKg, units)} {units}</strong><span>{formatDate(weightTrend.at(-1)!.date)}</span></div></div>}
+    {!weekOnly && completed.length > 1 && <div class="chart-card"><div class="chart-head"><div><p class="eyebrow">{t('history.exerciseProgress')}</p><h2>{selectedExercise ? exerciseText(selectedExercise).name : t('history.selectExercise')}</h2></div><label class="visually-hidden" for="exercise-trend">{t('history.selectExercise')}</label><select class="chart-select" id="exercise-trend" value={selectedExercise} onChange={event => setSelectedExercise((event.currentTarget as HTMLSelectElement).value)}>{allIds.map(id => <option value={id} key={id}>{exerciseText(id).name}</option>)}</select></div>{trendData.length > 1 ? <><div class="chart-wrap"><svg viewBox="0 0 320 116" role="img" aria-label={`${exerciseText(selectedExercise).name} ${t(`history.trend${(summary.exercise[selectedExercise]?.trend ?? 'flat').charAt(0).toUpperCase()}${(summary.exercise[selectedExercise]?.trend ?? 'flat').slice(1)}` as TranslationKey)}`}><path d="M18 24H302M18 59H302M18 94H302" class="chart-gridline" /><polyline points={points} class="chart-line" />{trendData.map((point, index) => { const [x, y] = points.split(' ')[index].split(','); return <circle key={point.date} cx={x} cy={y} r="4" class="chart-point" /> })}</svg></div><div class="chart-foot"><span>{formatDate(trendData[0].date)}</span><strong>{t('history.best')}: {formatNumber(summary.exercise[selectedExercise]?.best ?? 0)}</strong><span>{formatDate(trendData.at(-1)!.date)}</span></div><p class="trend-pill">{t(`history.trend${(summary.exercise[selectedExercise]?.trend ?? 'flat').charAt(0).toUpperCase()}${(summary.exercise[selectedExercise]?.trend ?? 'flat').slice(1)}` as TranslationKey)}</p></> : <p class="field-hint">{t('history.noData')}</p>}</div>}
+    {visibleSessions.length === 0 ? <div class="empty-history"><span class="empty-mark"><Icon name="history" /></span><h2>{t(weekOnly ? 'history.noWeekWorkouts' : 'history.emptyTitle')}</h2><p>{t(weekOnly ? 'history.noWeekWorkoutsBody' : 'history.emptyBody')}</p></div> : <div class="session-list">{visibleSessions.map(session => <article class="history-card" key={session.id}><button class="history-card-open" onClick={() => onOpen(session.id)}><div class="history-card-date"><span>{new Intl.DateTimeFormat(currentLanguage(), { weekday: 'short' }).format(new Date(performedAt(session)))}</span><strong>{new Intl.DateTimeFormat(currentLanguage(), { day: '2-digit' }).format(new Date(performedAt(session)))}</strong><small>{new Intl.DateTimeFormat(currentLanguage(), { month: 'short' }).format(new Date(performedAt(session)))}</small></div><div class="history-card-main"><span class={`status-label status-${session.status}`}>{t(`history.${session.status}` as TranslationKey)}</span><h3>{session.workout.title}</h3><p>{formatNumber(session.workout.blocks.reduce((sum, block) => sum + block.items.length, 0))} {t('runner.exercise')} · {formatNumber(session.workout.est_min)} {t('app.minutes')}</p></div><div class="history-completion"><strong>{formatNumber(completionRate(session))}%</strong><Icon name="arrow" /></div></button><button class="remove-session" aria-label={`${t('history.removeWorkout')}: ${session.workout.title}`} title={t('history.removeWorkout')} onClick={() => onRemove(session.id)}><Icon name="trash" /></button></article>)}</div>}
   </section>
 }
 

@@ -171,7 +171,7 @@ function advancedItem(template: WorkoutItem, completed: WorkoutItem, equipment: 
   return freshItem(next)
 }
 
-export function advanceProgram(program: TrainingProgram, session: WorkoutSession, date = new Date()): TrainingProgram {
+export function advanceProgram(program: TrainingProgram, session: WorkoutSession, date = new Date(), performedDate = date): TrainingProgram {
   if (!session.programRef || session.programRef.programId !== program.id) return program
   const slotIndex = session.programRef.slotIndex
   const slot = program.slots[slotIndex]
@@ -186,10 +186,11 @@ export function advanceProgram(program: TrainingProgram, session: WorkoutSession
   }
   const slots = program.slots.map((value, index) => index === slotIndex ? { ...value, workout } : value)
   const normalized = normalizeProgramWeek(program, date)
+  const completedThisWeek = weekKey(performedDate) === normalized.weekOf
   return {
     ...normalized,
     updatedAt: date.toISOString(),
-    sessionsCompletedThisWeek: normalized.sessionsCompletedThisWeek + 1,
+    sessionsCompletedThisWeek: normalized.sessionsCompletedThisWeek + (completedThisWeek ? 1 : 0),
     nextSlotIndex: (slotIndex + 1) % program.slots.length,
     slots,
   }
@@ -203,7 +204,7 @@ export function makeProgramSession(program: TrainingProgram, sessionId = id(), c
     blocks: slot.workout.blocks.map(block => ({ ...block, items: block.items.map(freshItem) })),
   }
   return {
-    id: sessionId, status: 'planned', createdAt, startedAt: null, finishedAt: null, timerEndsAt: null,
+    id: sessionId, status: 'planned', createdAt, startedAt: null, finishedAt: null, timerEndsAt: null, holdTimer: null,
     workout, rpe: null, note: '', usage: null,
     generationRequest: { duration: program.duration, focus: slot.focus, feel: '' },
     programRef: { programId: program.id, slotIndex },

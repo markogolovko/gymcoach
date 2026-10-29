@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { AppSnapshot, Storage } from '../storage/types'
 
 const setSchema = z.object({ done: z.boolean(), reps: z.number(), loadKg: z.number().nullable(), completedAt: z.string().nullable() })
+const holdTimerSchema = z.object({ blockIndex: z.number().int().nonnegative(), itemIndex: z.number().int().nonnegative(), setIndex: z.number().int().nonnegative(), startedAt: z.number(), targetSeconds: z.number().int().positive() })
 const itemSchema = z.object({
   ex: z.string(), name: z.string().nullable(), sets: z.number(), tgt: z.number(), u: z.enum(['r', 's']),
   load: z.number().nullable(), rest: z.number(), note: z.string().nullable(), log: z.array(setSchema), skipped: z.boolean(),
@@ -25,7 +26,7 @@ const snapshotSchema = z.object({
   format: z.literal('ai-gym-coach-backup'), version: z.literal(1), exportedAt: z.string(), settings: settingsSchema,
   capabilities: z.array(z.object({ exerciseId: z.string(), max: z.number().nullable(), loadKg: z.number().nullable(), reps: z.number().nullable(), updatedAt: z.string() })),
   weights: z.array(z.object({ id: z.string(), date: z.string(), weightKg: z.number() })),
-  sessions: z.array(z.object({ id: z.string(), status: z.enum(['planned', 'active', 'completed']), createdAt: z.string(), startedAt: z.string().nullable(), finishedAt: z.string().nullable(), timerEndsAt: z.number().nullable(), workout: planSchema, rpe: z.number().nullable(), note: z.string(), usage: z.object({ estimatedTokens: z.number(), promptTokens: z.number(), completionTokens: z.number() }).nullable(), generationRequest: z.object({ duration: z.number(), focus: z.string(), feel: z.string() }).nullable(), programRef: z.object({ programId: z.string(), slotIndex: z.number().int().min(0) }).optional() })),
+  sessions: z.array(z.object({ id: z.string(), status: z.enum(['planned', 'active', 'completed']), createdAt: z.string(), startedAt: z.string().nullable(), finishedAt: z.string().nullable(), timerEndsAt: z.number().nullable(), holdTimer: holdTimerSchema.nullable().optional(), workout: planSchema, rpe: z.number().nullable(), note: z.string(), usage: z.object({ estimatedTokens: z.number(), promptTokens: z.number(), completionTokens: z.number() }).nullable(), generationRequest: z.object({ duration: z.number(), focus: z.string(), feel: z.string() }).nullable(), programRef: z.object({ programId: z.string(), slotIndex: z.number().int().min(0) }).optional() })),
   meta: z.object({ lastBackupAt: z.string().nullable(), schemaVersion: z.number(), program: programSchema.nullable().default(null) }),
 })
 

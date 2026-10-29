@@ -17,10 +17,11 @@ export function starterLoadKg(exerciseId: string, bodyWeightKg: number | null = 
 
   const isolation = /curl|raise|fly|pushdown|face_pull|reverse_fly|calf_raise|leg_curl|leg_extension/.test(exerciseId)
   const lowerBody = exercise.pattern === 'legs'
-  const baseline = isolation ? 2.5 : lowerBody ? (exercise.equipment.includes('barbell') ? 15 : 10) : (exercise.equipment.includes('barbell') ? 10 : 5)
-  const bodyWeightRatio = isolation ? 0.05 : lowerBody ? 0.2 : 0.12
+  const machinePress = exerciseId === 'chest_press_machine'
+  const baseline = machinePress ? 15 : isolation ? 2.5 : lowerBody ? (exercise.equipment.includes('barbell') ? 15 : 10) : (exercise.equipment.includes('barbell') ? 10 : 5)
+  const bodyWeightRatio = machinePress ? 0.18 : isolation ? 0.05 : lowerBody ? 0.2 : 0.12
   const estimate = bodyWeightKg && bodyWeightKg > 0 ? bodyWeightKg * bodyWeightRatio : baseline
-  return Math.max(2.5, Math.round(estimate / 2.5) * 2.5)
+  return Math.max(machinePress ? 15 : 2.5, Math.round(estimate / 2.5) * 2.5)
 }
 
 export function filterCatalog(equipment: Equipment[], maxLevel = 5): Exercise[] {

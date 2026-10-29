@@ -7,6 +7,15 @@ export interface HistorySummary {
   avg_completion: number
 }
 
+export function performedAt(session: WorkoutSession): string {
+  if (session.startedAt) return session.startedAt
+  const setDates = session.workout.blocks.flatMap(block => block.items.flatMap(item => item.log
+    .filter(set => set.done && set.completedAt)
+    .map(set => set.completedAt as string)))
+  if (setDates.length) return setDates.sort()[0]
+  return session.finishedAt ?? session.createdAt
+}
+
 function metrics(session: WorkoutSession) {
   let planned = 0, done = 0
   const exercises = new Map<string, { reps: Array<number | null>; loads: Array<number | null>; best: number }>()
@@ -27,13 +36,13 @@ function metrics(session: WorkoutSession) {
 
 export function summarizeHistory(sessions: WorkoutSession[]): HistorySummary {
   const completed = sessions.filter(session => session.status === 'completed')
-    .sort((a, b) => (b.finishedAt ?? b.createdAt).localeCompare(a.finishedAt ?? a.createdAt))
+    .sort((a, b) => performedAt(b).localeCompare(performedAt(a)))
   const last = completed.slice(0, 3).map(session => {
     const rows: Array<[string, Array<number | null>, Array<number | null>, number, number | null]> = []
     for (const block of session.workout.blocks) for (const item of block.items) {
       rows.push([item.ex, item.log.map(set => set.done ? set.reps : null), item.log.map(set => set.done ? set.loadKg : null), item.sets, session.rpe])
     }
-    return [session.finishedAt ?? session.createdAt, rows] as [string, typeof rows]
+    return [performedAt(session), rows] as [string, typeof rows]
   })
   const aggregate = new Map<string, { scores: number[]; best: number }>()
   for (const session of completed.slice().reverse()) for (const [id, value] of metrics(session).exercises) {

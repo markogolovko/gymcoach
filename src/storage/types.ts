@@ -36,6 +36,13 @@ export interface WorkoutSet {
   loadKg: number | null
   completedAt: string | null
 }
+export interface HoldTimer {
+  blockIndex: number
+  itemIndex: number
+  setIndex: number
+  startedAt: number
+  targetSeconds: number
+}
 export interface WorkoutItem {
   ex: string
   name: string | null
@@ -81,6 +88,7 @@ export interface WorkoutSession {
   startedAt: string | null
   finishedAt: string | null
   timerEndsAt: number | null
+  holdTimer?: HoldTimer | null
   workout: WorkoutPlan
   rpe: number | null
   note: string
