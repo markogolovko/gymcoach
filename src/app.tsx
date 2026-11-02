@@ -464,6 +464,17 @@ function GenerateScreen({ settings, capabilities, sessions, program, onPlan, onC
   </section>
 }
 
+function SwapPicker({ replacements, onChoose }: { replacements: ReturnType<typeof exerciseById.get>[]; onChoose: (id: string) => void }) {
+  const [query, setQuery] = useState('')
+  const results = replacements.filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+    .filter(exercise => !query.trim() || `${nameFor(exercise.id)} ${exercise.muscles.join(' ')} ${exercise.equipment.join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()))
+  return <div class="swap-panel">
+    <p>{t('runner.swapHint')}</p>
+    <input class="text-input swap-search" type="search" value={query} placeholder={t('runner.swapSearch')} aria-label={t('runner.swapSearch')} onInput={event => setQuery((event.currentTarget as HTMLInputElement).value)} />
+    <div class="swap-results">{results.length ? results.map(exercise => <button key={exercise.id} class="swap-choice" onClick={() => onChoose(exercise.id)}>{nameFor(exercise.id)}<Icon name="arrow" /></button>) : <p class="swap-empty">{t('runner.swapNoResults')}</p>}</div>
+  </div>
+}
+
 function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpdates, onHome }: {
   session: WorkoutSession | null; settings: AppSettings; onStart: (id: string) => unknown; onFinish: (id: string, autoStop?: boolean, autoStopAt?: string) => unknown
   mutate: (transform: (current: WorkoutSession) => WorkoutSession, id?: string) => unknown; onApplyUpdates: (id: string) => Promise<void>; onHome: () => void
@@ -495,9 +506,18 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     const ctx = audioContextRef.current
     if (!ctx) return
     try {
-      const osc = ctx.createOscillator(); const gain = ctx.createGain()
-      osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = 740; gain.gain.value = .08
-      osc.start(); osc.stop(ctx.currentTime + .28); osc.onended = () => { osc.disconnect(); gain.disconnect() }
+      // A repeated two-tone alarm is easier to hear over music than the old quiet click.
+      const now = ctx.currentTime
+      for (const [offset, frequency] of [[0, 880], [.28, 660], [.58, 880], [.86, 660]] as const) {
+        const osc = ctx.createOscillator(); const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination); osc.type = 'square'; osc.frequency.value = frequency
+        gain.gain.setValueAtTime(.0001, now + offset)
+        gain.gain.exponentialRampToValueAtTime(.38, now + offset + .025)
+        gain.gain.setValueAtTime(.38, now + offset + .19)
+        gain.gain.exponentialRampToValueAtTime(.0001, now + offset + .24)
+        osc.start(now + offset); osc.stop(now + offset + .25)
+        osc.onended = () => { osc.disconnect(); gain.disconnect() }
+      }
     } catch { /* Sound is optional. */ }
   }
   useEffect(() => {
@@ -517,7 +537,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     const key = `${session.id}:${session.timerEndsAt}`
     if (beepedRef.current === key) return
     beepedRef.current = key
-    navigator.vibrate?.([160, 80, 160])
+    navigator.vibrate?.([300, 120, 300, 120, 500])
     playSignal()
   }, [session?.id, session?.timerEndsAt, timerLeft])
   useEffect(() => {
@@ -525,7 +545,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     const key = `hold:${session?.id}:${holdTimer.startedAt}`
     if (beepedRef.current === key) return
     beepedRef.current = key
-    navigator.vibrate?.([180, 90, 180])
+    navigator.vibrate?.([300, 120, 300, 120, 500])
     playSignal()
   }, [session?.id, holdTimer?.startedAt, holdTimer?.targetSeconds, holdElapsed])
   useEffect(() => {
@@ -543,6 +563,10 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', resumeIdleWindow) }
   }, [session?.id, session?.status])
   useEffect(() => () => { if (audioContextRef.current) void audioContextRef.current.close() }, [])
+  useEffect(() => {
+    if (!exerciseDetail) return
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [exerciseDetail])
 
   if (!session) return <section class="empty-screen"><span class="empty-mark"><Icon name="spark" /></span><p class="eyebrow">{t('runner.eyebrow')}</p><h1>{t('home.noSessions')}</h1><button class="button button-primary" onClick={onHome}>{t('app.today')}<Icon name="arrow" /></button></section>
 
@@ -617,7 +641,6 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   const openExerciseGuide = (id: string, name: string, note: string | null) => {
     planScrollY.current = window.scrollY
     setExerciseDetail({ id, name, note })
-    window.scrollTo({ top: 0, behavior: 'auto' })
   }
   const returnToPlan = () => {
     setExerciseDetail(null)
@@ -662,21 +685,28 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
         const exerciseLabel = item.ex === 'custom' ? item.name ?? t('generator.custom') : text.name
         const demoFrames = exerciseImages[item.ex as keyof typeof exerciseImages]?.frames ?? []
         const availableEquipment = new Set(['bodyweight', ...settings.equipment])
-        const replacements = [...(exercise?.regressions ?? []), ...(exercise?.progressions ?? [])].filter(id => exerciseById.get(id)?.equipment.every(tag => availableEquipment.has(tag)))
+        const replacements = [...exerciseById.values()]
+          .filter(candidate => candidate.id !== item.ex && candidate.equipment.every(tag => availableEquipment.has(tag)))
+          .sort((a, b) => {
+            const score = (candidate: typeof a) => (exercise?.progressions.includes(candidate.id) || exercise?.regressions.includes(candidate.id) ? 100 : 0)
+              + (exercise?.pattern === candidate.pattern ? 20 : 0)
+              + (exercise ? candidate.muscles.filter(muscle => exercise.muscles.includes(muscle)).length * 10 : 0)
+            return score(b) - score(a) || nameFor(a.id).localeCompare(nameFor(b.id))
+          })
         return <article class={`exercise-card ${item.skipped ? 'exercise-skipped' : ''}`} key={`${key}-${item.ex}`}>
           <div class="exercise-title-row"><div><h3><button class="exercise-title-link" onClick={() => openExerciseGuide(item.ex, exerciseLabel, item.note)} aria-label={`${exerciseLabel}: ${t('runner.viewGuide')}`}><span>{exerciseLabel}</span><Icon name="arrow" /></button></h3><p>{text.cue || cueFor(item.ex)}</p><button class="exercise-guide-link" onClick={() => openExerciseGuide(item.ex, exerciseLabel, item.note)}>{t('runner.viewGuide')}</button>{item.skipped && <span class="skipped-badge">{t('runner.skipped')}</span>}</div><div class="exercise-meta"><strong>{formatNumber(item.sets)} × {formatNumber(item.tgt)}{item.u === 'r' ? ` ${t('app.reps')}` : ` ${t('app.seconds')}`}</strong>{item.load !== null && <span>{formatLoad(item.load, settings.units)} {settings.units}</span>}</div></div>
           {demoFrames.length > 0 && <div class="exercise-demo">{demoFrames.map((src, frameIndex) => <figure key={src}><img src={src} alt={`${exerciseLabel} — ${t(frameIndex === 0 ? 'runner.demoStart' : frameIndex === demoFrames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}`} loading="lazy" decoding="async" /><figcaption>{t(frameIndex === 0 ? 'runner.demoStart' : frameIndex === demoFrames.length - 1 ? 'runner.demoFinish' : 'runner.demoStep')}</figcaption></figure>)}</div>}
           {item.note && <p class="exercise-note">{item.note}</p>}
           {!item.skipped && <div class="set-list">{item.log.map((set, si) => <div class={`set-row ${set.done ? 'set-done' : ''}`} key={si}><div class="set-number">{new Intl.NumberFormat(currentLanguage(), { minimumIntegerDigits: 2, useGrouping: false }).format(si + 1)}</div><div class="set-target">{t('app.setCount', { count: si + 1 })}<span>{formatNumber(set.reps)} {item.u === 'r' ? t('app.reps') : t('app.seconds')}</span></div>
             <div class="set-steppers"><div class="stepper" aria-label={t('runner.adjustReps')}><button aria-label={`${t('runner.adjustReps')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: Math.max(0, set.reps - (item.u === 's' ? 5 : 1)) })}><Icon name="minus" /></button><strong>{set.reps}</strong><button aria-label={`${t('runner.adjustReps')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: set.reps + (item.u === 's' ? 5 : 1) })}><Icon name="plus" /></button></div>
-              {exercise?.loadable && <div class="stepper load-stepper" aria-label={t('runner.adjustLoad')}><button aria-label={`${t('runner.adjustLoad')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { loadKg: Math.max(0, (set.loadKg ?? 0) - toKg(settings.units === 'lb' ? 5 : 2.5, settings.units)) })}><Icon name="minus" /></button><strong>{formatLoad(set.loadKg, settings.units)}<small>{settings.units}</small></strong><button aria-label={`${t('runner.adjustLoad')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { loadKg: (set.loadKg ?? 0) + toKg(settings.units === 'lb' ? 5 : 2.5, settings.units) })}><Icon name="plus" /></button></div>}
+              {exercise?.loadable && <label class="load-input-wrap"><span class="visually-hidden">{t('runner.adjustLoad')} · {t('app.setCount', { count: si + 1 })}</span><input class="load-input" type="number" min="0" step="1" inputMode="numeric" aria-label={`${t('runner.adjustLoad')} · ${t('app.setCount', { count: si + 1 })}`} value={set.loadKg === null ? '' : Math.round(settings.units === 'lb' ? set.loadKg * 2.20462 : set.loadKg)} disabled={session.status !== 'active'} onInput={event => { const value = (event.currentTarget as HTMLInputElement).value; adjustSet(bi, ii, si, { loadKg: value === '' ? null : toKg(Math.max(0, Math.trunc(Number(value))), settings.units) }) }} /><small>{settings.units}</small></label>}
             </div><button class={`complete-set ${set.done ? 'is-done' : ''}`} disabled={session.status !== 'active' || item.u === 's' || holdTimer !== null} aria-pressed={set.done} aria-label={`${exerciseLabel}, ${t('app.setCount', { count: si + 1 })}, ${t(set.done ? 'runner.completed' : 'runner.markDone')}`} onClick={() => toggleSet(bi, ii, si)}>{set.done ? <Icon name="check" /> : <span />}</button></div>)}</div>}
           {session.status === 'active' && item.u === 's' && !item.skipped && item.log.some(set => !set.done) && (() => {
             const nextSetIndex = item.log.findIndex(set => !set.done)
             return <div class="hold-start-row"><span>{t('runner.holdNextSet', { count: nextSetIndex + 1, seconds: item.log[nextSetIndex].reps })}</span><button disabled={holdTimer !== null} onClick={() => startHoldTimer(bi, ii, nextSetIndex)}><Icon name="clock" />{holdTimer ? t('runner.holdTimerRunning') : t('runner.startHold')}</button></div>
           })()}
           {session.status === 'active' && <div class="exercise-actions"><button class="quiet-action" onClick={() => setSwapping(swapping === key ? null : key)} disabled={item.skipped || item.log.some(set => set.done) || replacements.length === 0}>{t('runner.swap')}</button><button class="quiet-action quiet-skip" onClick={() => byId(bi, ii, value => ({ ...value, skipped: true }))} disabled={item.skipped}>{t(item.skipped ? 'runner.skipped' : 'runner.skipExercise')}</button></div>}
-          {swapping === key && replacements.length > 0 && <div class="swap-panel"><p>{t('runner.swapHint')}</p>{replacements.map(id => <button key={id} class="swap-choice" onClick={() => { const target = exerciseById.get(id); if (!target) return; byId(bi, ii, value => ({ ...value, ex: id, name: null, u: target.type === 'time' ? 's' : 'r', load: null, tgt: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, log: Array.from({ length: value.sets }, () => ({ done: false, reps: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, loadKg: null, completedAt: null })), skipped: false })); setSwapping(null) }}>{nameFor(id)}<Icon name="arrow" /></button>)}</div>}
+          {swapping === key && <SwapPicker replacements={replacements} onChoose={id => { const target = exerciseById.get(id); if (!target) return; byId(bi, ii, value => ({ ...value, ex: id, name: null, u: target.type === 'time' ? 's' : 'r', load: null, tgt: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, log: Array.from({ length: value.sets }, () => ({ done: false, reps: target.type === 'time' ? Math.min(value.tgt, 120) : value.tgt, loadKg: null, completedAt: null })), skipped: false })); setSwapping(null) }} />}
         </article>
       })}
     </section>)}</div>
