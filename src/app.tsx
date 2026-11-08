@@ -726,5 +726,6 @@ function SettingsScreen({ settings, setDraft, capabilities, persistState, storag
         <div class="storage-usage"><span>{t('settings.storageUsed', { used: byteSize(storageEstimate.usage), quota: byteSize(storageEstimate.quota) })}</span><div class="usage-track"><i style={{ width: `${storageEstimate.usage && storageEstimate.quota ? Math.min(100, storageEstimate.usage / storageEstimate.quota * 100) : 0}%` }} /></div></div>
       </section>
     </div>
+    <p class="app-version">FORM {__APP_VERSION__} · {__APP_BUILD_TIME__.slice(0, 19).replace('T', ' ')} UTC</p>
   </section>
 }
