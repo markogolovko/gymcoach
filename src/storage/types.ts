@@ -65,27 +65,11 @@ export interface WorkoutPlan {
   coach: string
   cap_updates: CapabilityUpdate[]
 }
-export interface TrainingProgramSlot { title: string; focus: string; workout: WorkoutPlan }
-export interface TrainingProgram {
-  id: string
-  title: string
-  createdAt: string
-  updatedAt: string
-  sessionsPerWeek: number
-  sessionsCompletedThisWeek: number
-  weekOf: string
-  nextSlotIndex: number
-  duration: number
-  focus: string
-  equipment: Equipment[]
-  slots: TrainingProgramSlot[]
-}
 export type SessionStatus = 'planned' | 'active' | 'completed'
 export interface WorkoutSession {
   id: string
   status: SessionStatus
   createdAt: string
-  startedAt: string | null
   finishedAt: string | null
   timerEndsAt: number | null
   holdTimer?: HoldTimer | null
@@ -94,20 +78,7 @@ export interface WorkoutSession {
   note: string
   usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } | null
   generationRequest: { duration: number; focus: string; feel: string } | null
-  programRef?: { programId: string; slotIndex: number }
 }
-export interface AppMeta { lastBackupAt: string | null; schemaVersion: number; program?: TrainingProgram | null }
-export interface AppSnapshot {
-  format: 'ai-gym-coach-backup'
-  version: 1
-  exportedAt: string
-  settings: AppSettings
-  capabilities: Capability[]
-  weights: WeightEntry[]
-  sessions: WorkoutSession[]
-  meta: AppMeta
-}
-
 export interface Storage {
   getSettings(): Promise<AppSettings>
   saveSettings(value: AppSettings): Promise<void>
@@ -120,10 +91,6 @@ export interface Storage {
   getSession(id: string): Promise<WorkoutSession | undefined>
   saveSession(value: WorkoutSession): Promise<void>
   deleteSession(id: string): Promise<void>
-  getMeta(): Promise<AppMeta>
-  saveMeta(value: AppMeta): Promise<void>
-  exportSnapshot(includeApiKey?: boolean): Promise<AppSnapshot>
-  replaceSnapshot(value: AppSnapshot): Promise<void>
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type AppSnapshot, type Capability, type Storage, type WeightEntry, type WorkoutSession } from './types'
+import { DEFAULT_SETTINGS, type AppSettings, type Capability, type Storage, type WeightEntry, type WorkoutSession } from './types'
 
 const DB_NAME = 'ai-gym-coach'
 const DB_VERSION = 1
@@ -10,7 +10,7 @@ interface GymDB extends DBSchema {
   capabilities: { key: string; value: Capability }
   weights: { key: string; value: WeightEntry; indexes: { 'by-date': string } }
   sessions: { key: string; value: WorkoutSession; indexes: { 'by-created': string; 'by-status': string } }
-  meta: { key: 'app'; value: AppMeta }
+  meta: { key: 'app'; value: Record<string, unknown> }
 }
 
 let dbPromise: Promise<IDBPDatabase<GymDB>> | undefined
@@ -44,14 +44,12 @@ async function run<T>(label: string, action: (db: IDBPDatabase<GymDB>) => Promis
   try { return await action(await open()) }
   catch (error) {
     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-      throw new Error(`${label}: device storage is full. Export your data, then remove older sessions or free device space.`)
+      throw new Error(`${label}: device storage is full. Remove older sessions or free device space.`)
     }
     const detail = error instanceof Error ? error.message : 'Unknown storage error'
-    throw new Error(`${label}: browser storage could not be accessed (${detail}). If your data is still available, export it from Settings.`)
+    throw new Error(`${label}: browser storage could not be accessed (${detail}). Please try again.`)
   }
 }
-
-const defaultMeta: AppMeta = { lastBackupAt: null, schemaVersion: DB_VERSION, program: null }
 
 export class LocalAdapter implements Storage {
   getSettings() {
@@ -81,45 +79,6 @@ export class LocalAdapter implements Storage {
   getSession(id: string) { return run('Load session', db => db.get('sessions', id)) }
   saveSession(value: WorkoutSession) { return run('Save workout', db => db.put('sessions', value)).then(() => undefined) }
   deleteSession(id: string) { return run('Remove workout', db => db.delete('sessions', id)).then(() => undefined) }
-  getMeta() {
-    return run('Load app data', async db => {
-      const meta = await db.get('meta', 'app')
-      return { ...defaultMeta, ...(meta ?? {}) }
-    })
-  }
-  saveMeta(value: AppMeta) { return run('Save app data', db => db.put('meta', value, 'app')).then(() => undefined) }
-  exportSnapshot(includeApiKey = false) {
-    return run('Prepare backup', async db => {
-      const tx = db.transaction(['settings', 'capabilities', 'weights', 'sessions', 'meta'], 'readonly')
-      const [settings, capabilities, weights, sessions, meta] = await Promise.all([
-        tx.objectStore('settings').get('app'), tx.objectStore('capabilities').getAll(),
-        tx.objectStore('weights').getAll(), tx.objectStore('sessions').getAll(), tx.objectStore('meta').get('app'),
-      ])
-      await tx.done
-      const safeSettings = { ...(settings ?? DEFAULT_SETTINGS), apiKey: includeApiKey ? (settings?.apiKey ?? '') : '' }
-      return { format: 'ai-gym-coach-backup' as const, version: 1 as const, exportedAt: new Date().toISOString(), settings: safeSettings,
-        capabilities, weights, sessions, meta: meta ?? defaultMeta }
-    })
-  }
-  replaceSnapshot(snapshot: AppSnapshot) {
-    return run('Restore backup', async db => {
-      const tx = db.transaction(['settings', 'capabilities', 'weights', 'sessions', 'meta'], 'readwrite')
-      const existingKey = (await tx.objectStore('settings').get('app'))?.apiKey ?? ''
-      await Promise.all([
-        tx.objectStore('settings').clear(), tx.objectStore('capabilities').clear(), tx.objectStore('weights').clear(),
-        tx.objectStore('sessions').clear(), tx.objectStore('meta').clear(),
-      ])
-      const restoredSettings = { ...DEFAULT_SETTINGS, ...snapshot.settings, apiKey: snapshot.settings.apiKey || existingKey }
-      await Promise.all([
-        tx.objectStore('settings').put(restoredSettings, 'app'),
-        ...snapshot.capabilities.map(value => tx.objectStore('capabilities').put(value)),
-        ...snapshot.weights.map(value => tx.objectStore('weights').put(value)),
-        ...snapshot.sessions.map(value => tx.objectStore('sessions').put(value)),
-        tx.objectStore('meta').put({ ...defaultMeta, ...snapshot.meta, lastBackupAt: new Date().toISOString(), schemaVersion: DB_VERSION }, 'app'),
-      ])
-      await tx.done
-    })
-  }
 }
 
 export const storage: Storage = new LocalAdapter()

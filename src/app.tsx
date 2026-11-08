@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { DEFAULT_SETTINGS, type AppMeta, type AppSettings, type Capability, type Equipment, type TrainingProgram, type WeightEntry, type WorkoutItem, type WorkoutSession } from './storage/types'
+import { DEFAULT_SETTINGS, type AppSettings, type Capability, type Equipment, type WeightEntry, type WorkoutItem, type WorkoutSession } from './storage/types'
 import { storage } from './storage/local'
 import { cueFor, exerciseById, nameFor, starterLoadKg } from './lib/catalog'
 import exerciseImages from './data/exercise-images.json'
 import { exerciseGuideFor } from './data/exercise-guides.en'
-import { advanceProgram, buildLocalProgram, makeProgramSession, normalizeProgramWeek, refineProgramSlot, slotLabel, weekKey, type LocalProgramInput } from './lib/program'
-import { completionRate, doneSetCount, performedAt, plannedSetCount, summarizeHistory } from './lib/history'
+import { completionRate, doneSetCount, performedAt, plannedSetCount, summarizeHistory, activityMinutes, weekKey } from './lib/history'
 import { generateWorkout, CoachError } from './lib/openai'
 import { estimateTokens, makePromptPayload, type GenerateInput } from './lib/prompt'
 import { adjustEndTime, formatTimer, secondsRemaining } from './lib/timer'
-import { restoreBackup, saveBackupFile } from './lib/backup'
 import { currentLanguage, exerciseText, setLanguage, t, type TranslationKey } from './i18n'
 
 type Screen = 'home' | 'generate' | 'runner' | 'history' | 'settings'
@@ -57,10 +55,6 @@ function fillStarterLoads(session: WorkoutSession, bodyWeightKg: number | null, 
   }))
   return changed ? { ...session, workout: { ...session.workout, blocks } } : session
 }
-function minutesBetween(start: string | null, end: string | null) {
-  if (!start) return 0
-  return Math.max(0, Math.round(((end ? new Date(end).getTime() : Date.now()) - new Date(start).getTime()) / 60000))
-}
 
 function Icon({ name }: { name: 'home' | 'generate' | 'history' | 'settings' | 'check' | 'plus' | 'minus' | 'arrow' | 'close' | 'clock' | 'spark' | 'trash' }) {
   const paths: Record<string, string> = {
@@ -87,31 +81,30 @@ export function App() {
   const [capabilities, setCapabilities] = useState<Capability[]>([])
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
-  const [meta, setMeta] = useState<AppMeta>({ lastBackupAt: null, schemaVersion: 1, program: null })
   const [persistState, setPersistState] = useState<PersistState>('unsupported')
   const [storageEstimate, setStorageEstimate] = useState<{ usage?: number; quota?: number }>({})
   const [iosGuide, setIosGuide] = useState(false)
   const [notice, setNotice] = useState('')
   const [sessionDetailId, setSessionDetailId] = useState<string | null>(null)
   const [historyWeekOnly, setHistoryWeekOnly] = useState(false)
+  const [refineSessionId, setRefineSessionId] = useState<string | null>(null)
   const sessionsRef = useRef<WorkoutSession[]>([])
   const writeQueue = useRef<Promise<void>>(Promise.resolve())
   const settingsWriteQueue = useRef<Promise<void>>(Promise.resolve())
-  const fileInput = useRef<HTMLInputElement>(null)
 
   const loadAll = async () => {
     setLoading(true)
     setStorageError('')
     try {
-      const [storedSettings, storedCaps, storedWeights, storedSessions, storedMeta] = await Promise.all([
-        storage.getSettings(), storage.listCapabilities(), storage.listWeights(), storage.listSessions(), storage.getMeta(),
+      const [storedSettings, storedCaps, storedWeights, storedSessions] = await Promise.all([
+        storage.getSettings(), storage.listCapabilities(), storage.listWeights(), storage.listSessions(),
       ])
       const loadedSessions = storedSessions.map(session => fillStarterLoads(session, storedSettings.profile.weightKg, storedCaps, storedSessions))
       try { await Promise.all(loadedSessions.filter((session, index) => session !== storedSessions[index]).map(session => storage.saveSession(session))) }
       catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
       setSettings(storedSettings); setSettingsDraft(storedSettings); setCapabilities(storedCaps); setWeights(storedWeights)
       sessionsRef.current = loadedSessions
-      setSessions(loadedSessions); setMeta(storedMeta)
+      setSessions(loadedSessions)
       await setLanguage(storedSettings.language)
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
       const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
@@ -178,12 +171,6 @@ export function App() {
   const sortedSessions = useMemo(() => [...sessions].sort((a, b) => performedAt(b).localeCompare(performedAt(a))), [sessions])
   const currentSession = useMemo(() => sessions.find(session => session.status === 'active') ?? sortedSessions.find(session => session.status === 'planned') ?? null, [sessions, sortedSessions])
   const detailSession = sessionDetailId ? sessions.find(session => session.id === sessionDetailId) ?? null : null
-  const hasTrainingData = sessions.length > 0 || capabilities.length > 0 || weights.length > 0
-  const firstTrainingDataAt = [...sessions.map(session => session.createdAt), ...capabilities.map(capability => capability.updatedAt), ...weights.map(weight => weight.date)]
-    .map(value => new Date(value).getTime()).filter(Number.isFinite).reduce((earliest, value) => Math.min(earliest, value), Number.POSITIVE_INFINITY)
-  const backupReferenceAt = meta.lastBackupAt ? new Date(meta.lastBackupAt).getTime() : firstTrainingDataAt
-  const backupDue = hasTrainingData && Number.isFinite(backupReferenceAt) && Date.now() - backupReferenceAt >= 14 * 86400000
-
   const updateSettings = async (next: AppSettings) => {
     setSettingsDraft(next)
     const operation = settingsWriteQueue.current.catch(() => undefined).then(() => storage.saveSettings(next))
@@ -248,48 +235,11 @@ export function App() {
     return operation
   }
 
-  const startSession = (id?: string) => commitSession(session => ({ ...session, status: 'active', startedAt: session.startedAt ?? new Date().toISOString() }), id)
-  const finishSession = async (id?: string, autoStop = false, autoStopAt?: string) => {
+  const finishSession = async (id?: string) => {
     const source = (id ? sessionsRef.current.find(session => session.id === id) : undefined) ?? sessionsRef.current.find(session => session.status === 'active')
     if (!source || source.status === 'completed') return
     try {
-      await commitSession(session => ({ ...session, status: 'completed', finishedAt: autoStopAt ?? new Date().toISOString(), timerEndsAt: null, holdTimer: null }), source.id)
-      const program = meta.program
-      if (source.programRef && program?.id === source.programRef.programId) {
-        const nextMeta = { ...meta, program: advanceProgram(program, source, new Date(), new Date(performedAt(source))) }
-        await storage.saveMeta(nextMeta)
-        setMeta(nextMeta)
-      }
-      if (autoStop) setNotice(t('runner.autoStopped'))
-    } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
-  }
-  const createProgram = async (input: LocalProgramInput) => {
-    try {
-      const program = buildLocalProgram(input, capabilities, settings.profile.weightKg)
-      const session = fillStarterLoads(makeProgramSession(program, newId()), settings.profile.weightKg, capabilities, sessionsRef.current)
-      const nextMeta = { ...meta, program }
-      await storage.saveMeta(nextMeta)
-      await storage.saveSession(session)
-      const next = [session, ...sessionsRef.current]
-      sessionsRef.current = next; setSessions(next); setMeta(nextMeta); setRunnerId(session.id); setScreen('runner')
-      return true
-    } catch (error) {
-      setStorageError(error instanceof Error ? error.message : t('settings.dataError'))
-      return false
-    }
-  }
-  const startNextProgramWorkout = async () => {
-    if (!meta.program) return
-    try {
-      const program = normalizeProgramWeek(meta.program)
-      if (program !== meta.program) {
-        await storage.saveMeta({ ...meta, program })
-        setMeta({ ...meta, program })
-      }
-      const session = fillStarterLoads(makeProgramSession(program, newId()), settings.profile.weightKg, capabilities, sessionsRef.current)
-      await storage.saveSession(session)
-      const next = [session, ...sessionsRef.current]
-      sessionsRef.current = next; setSessions(next); setRunnerId(session.id); setScreen('runner')
+      await commitSession(session => ({ ...session, status: 'completed', finishedAt: new Date().toISOString(), timerEndsAt: null, holdTimer: null }), source.id)
     } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.dataError')) }
   }
   const applyCapabilityUpdates = async (id?: string) => {
@@ -303,27 +253,6 @@ export function App() {
     setNotice(t('runner.suggestionsApplied'))
   }
 
-  const exportData = async (includeKey: boolean) => {
-    try {
-      await saveBackupFile(storage, includeKey)
-      const nextMeta = await storage.getMeta(); setMeta(nextMeta)
-      setNotice(t('settings.backupReady'))
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return
-      setStorageError(error instanceof Error ? error.message : t('settings.dataError'))
-    }
-  }
-  const importData = async (event: Event) => {
-    const input = event.currentTarget as HTMLInputElement
-    const file = input.files?.[0]
-    if (!file) return
-    try {
-      await restoreBackup(storage, await file.text())
-      await loadAll()
-      setNotice(t('settings.importSuccess'))
-    } catch (error) { setStorageError(error instanceof Error ? error.message : t('settings.invalidBackup')) }
-    finally { input.value = '' }
-  }
 
   const navigate = (next: Screen) => { setScreen(next); if (next !== 'history') setSessionDetailId(null) }
 
@@ -338,7 +267,6 @@ export function App() {
   return <div class="app-shell">
     <header class="topbar">
       <button class="brand" aria-label={t('app.name')} onClick={() => navigate('home')}><span class="brand-mark">F</span><span>FORM</span></button>
-      <div class="offline-pill"><span class="status-dot" />{t('app.offline')}</div>
     </header>
 
     {storageError && <div class="global-alert" role="alert"><span>{storageError}</span><button aria-label={t('app.close')} onClick={() => setStorageError('')}><Icon name="close" /></button></div>}
@@ -346,34 +274,24 @@ export function App() {
 
     <main class="main-content">
       {iosGuide && <aside class="install-banner"><div><p class="eyebrow">{t('install.title')}</p><p>{t('install.body')}</p><ol><li>{t('install.step1')}</li><li>{t('install.step2')}</li><li>{t('install.step3')}</li></ol></div><button class="icon-button" aria-label={t('install.dismiss')} onClick={() => { setIosGuide(false); void updateSettings({ ...settings, iosInstallDismissed: true }) }}><Icon name="close" /></button></aside>}
-      {backupDue && <aside class="backup-banner"><span>{t('install.reminder')}</span><button class="text-button" onClick={() => { navigate('settings'); void exportData(false) }}>{t('install.backupNow')} <Icon name="arrow" /></button></aside>}
 
-      {screen === 'home' && <HomeScreen sessions={sessions} currentSession={currentSession} program={meta.program ?? null} onGenerate={() => navigate('generate')} onStartProgram={() => void startNextProgramWorkout()} onContinue={() => { setRunnerId(currentSession?.id ?? null); navigate('runner') }} onOpenWeekHistory={() => { setHistoryWeekOnly(true); navigate('history') }} />}
-      {screen === 'generate' && <GenerateScreen settings={settings} capabilities={capabilities} sessions={sessions} program={meta.program ?? null} onCreateProgram={createProgram} onPlan={async (input, apiKey, refineNext) => {
+      {screen === 'home' && <HomeScreen sessions={sessions} currentSession={currentSession} onGenerate={() => { setRefineSessionId(null); navigate('generate') }} onContinue={() => { setRunnerId(currentSession?.id ?? null); navigate('runner') }} onOpenWeekHistory={() => { setHistoryWeekOnly(true); navigate('history') }} />}
+      {screen === 'generate' && <GenerateScreen settings={settings} capabilities={capabilities} sessions={sessions} refineSession={sessions.find(session => session.id === refineSessionId) ?? null} onPlan={async (input, apiKey, refineId) => {
         try {
           const nextSettings = apiKey === settings.apiKey ? settings : { ...settings, apiKey }
           if (nextSettings !== settings) {
             await storage.saveSettings(nextSettings)
             setSettings(nextSettings); setSettingsDraft(nextSettings)
           }
-          const result = await generateWorkout(input, { ...nextSettings, model: 'gpt-5.4-mini', language: 'en' }, capabilities, sessions)
-          const sourceProgram = refineNext ? meta.program ?? null : null
-          const slotIndex = sourceProgram ? sourceProgram.nextSlotIndex : -1
-          const program = sourceProgram ? refineProgramSlot(sourceProgram, slotIndex, result.workout) : null
-          const programRef = program ? { programId: program.id, slotIndex } : undefined
-          const existingSlotSession = programRef ? sessionsRef.current.find(session => session.status === 'planned' && session.programRef?.programId === programRef.programId && session.programRef.slotIndex === programRef.slotIndex) : undefined
-          const session: WorkoutSession = existingSlotSession
-            ? { ...existingSlotSession, workout: result.workout, usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
-            : { id: newId(), status: 'planned', createdAt: new Date().toISOString(), startedAt: null, finishedAt: null, timerEndsAt: null, holdTimer: null,
-              workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel }, ...(programRef ? { programRef } : {}) }
-          if (program) {
-            const nextMeta = { ...meta, program }
-            await storage.saveMeta(nextMeta)
-            setMeta(nextMeta)
-          }
+          const refineTarget = refineId ? sessionsRef.current.find(session => session.id === refineId) : undefined
+          const result = await generateWorkout({ ...input, ...(refineTarget ? { refineWorkout: refineTarget.workout } : {}) }, { ...nextSettings, model: 'gpt-5.4-mini', language: 'en' }, capabilities, sessions)
+          const session: WorkoutSession = refineTarget
+            ? { ...refineTarget, workout: result.workout, usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
+            : { id: newId(), status: 'planned', createdAt: new Date().toISOString(), finishedAt: null, timerEndsAt: null, holdTimer: null,
+              workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
           const preparedSession = fillStarterLoads(session, nextSettings.profile.weightKg, capabilities, sessionsRef.current)
           await storage.saveSession(preparedSession)
-          const next = existingSlotSession ? sessionsRef.current.map(item => item.id === preparedSession.id ? preparedSession : item) : [preparedSession, ...sessionsRef.current]
+          const next = refineTarget ? sessionsRef.current.map(item => item.id === preparedSession.id ? preparedSession : item) : [preparedSession, ...sessionsRef.current]
           sessionsRef.current = next; setSessions(next); setRunnerId(preparedSession.id); setScreen('runner')
           return { ok: true as const, usage: result.usage }
         } catch (error) {
@@ -381,12 +299,11 @@ export function App() {
           return { ok: false as const, kind: 'generic' as const, message: error instanceof Error ? error.message : t('generator.errorGeneric') }
         }
       }} />}
-      {screen === 'runner' && <RunnerScreen session={sessions.find(item => item.id === runnerId) ?? currentSession} settings={settings} onStart={startSession} onFinish={finishSession} mutate={commitSession} onApplyUpdates={applyCapabilityUpdates} onHome={() => navigate('home')} />}
-      {screen === 'history' && <HistoryScreen sessions={sortedSessions} weights={weights} units={settings.units} detail={detailSession} weekOnly={historyWeekOnly} onShowAll={() => setHistoryWeekOnly(false)} onOpen={id => setSessionDetailId(id)} onClose={() => setSessionDetailId(null)} onStart={id => { void startSession(id); setRunnerId(id); setSessionDetailId(null); navigate('runner') }} onRemove={removeSession} />}
-      {screen === 'settings' && <SettingsScreen settings={settingsDraft} setDraft={setSettingsDraft} capabilities={capabilities} meta={meta} persistState={persistState} storageEstimate={storageEstimate} onSave={updateSettings} onRecordWeight={logCurrentWeight} onSaveCapability={saveCapability} onRemoveCapability={removeCapability} onExport={exportData} onImportClick={() => fileInput.current?.click()} />}
+      {screen === 'runner' && <RunnerScreen session={sessions.find(item => item.id === runnerId) ?? currentSession} settings={settings} onFinish={finishSession} mutate={commitSession} onApplyUpdates={applyCapabilityUpdates} onRefine={id => { setRefineSessionId(id); navigate('generate') }} onHome={() => navigate('home')} />}
+      {screen === 'history' && <HistoryScreen sessions={sortedSessions} weights={weights} units={settings.units} detail={detailSession} weekOnly={historyWeekOnly} onShowAll={() => setHistoryWeekOnly(false)} onOpen={id => setSessionDetailId(id)} onClose={() => setSessionDetailId(null)} onRemove={removeSession} />}
+      {screen === 'settings' && <SettingsScreen settings={settingsDraft} setDraft={setSettingsDraft} capabilities={capabilities} persistState={persistState} storageEstimate={storageEstimate} onSave={updateSettings} onRecordWeight={logCurrentWeight} onSaveCapability={saveCapability} onRemoveCapability={removeCapability} />}
     </main>
 
-    <input ref={fileInput} type="file" accept="application/json,.json" class="visually-hidden" onChange={importData} aria-label={t('settings.import')} />
     <nav class="bottom-nav" aria-label={t('app.navigation')}>
       {navItems.map(item => <button key={item.id} class={`nav-item ${screen === item.id ? 'active' : ''}`} aria-label={t(`app.${item.key}` as TranslationKey)} aria-current={screen === item.id ? 'page' : undefined} onClick={() => { setHistoryWeekOnly(false); navigate(item.id) }}>
         <Icon name={item.icon} /><span>{t(`app.${item.key}` as TranslationKey)}</span>
@@ -395,14 +312,14 @@ export function App() {
   </div>
 }
 
-function HomeScreen({ sessions, currentSession, program, onGenerate, onStartProgram, onContinue, onOpenWeekHistory }: { sessions: WorkoutSession[]; currentSession: WorkoutSession | null; program: TrainingProgram | null; onGenerate: () => void; onStartProgram: () => void; onContinue: () => void; onOpenWeekHistory: () => void }) {
+function HomeScreen({ sessions, currentSession, onGenerate, onContinue, onOpenWeekHistory }: { sessions: WorkoutSession[]; currentSession: WorkoutSession | null; onGenerate: () => void; onContinue: () => void; onOpenWeekHistory: () => void }) {
   const completed = sessions.filter(session => session.status === 'completed').sort((a, b) => performedAt(b).localeCompare(performedAt(a)))
   const last = completed[0]
   const thisWeek = completed.filter(session => weekKey(new Date(performedAt(session))) === weekKey()).length
-  const trained = completed.reduce((sum, session) => sum + minutesBetween(session.startedAt, session.finishedAt), 0)
+  const trained = completed.reduce((sum, session) => sum + activityMinutes(session), 0)
   return <section class="home-screen">
     <div class="hero-grid"><div class="hero-copy"><p class="eyebrow">{t('home.eyebrow')}</p><h1>{t('home.title')}</h1><p class="hero-description">{t('home.description')}</p>
-      {currentSession ? <div class="session-callout"><div class="callout-icon"><Icon name={currentSession.status === 'active' ? 'clock' : 'check'} /></div><div><strong>{currentSession.status === 'active' ? t('home.activeSession') : t('home.planned')}</strong><span>{currentSession.workout.title}</span></div><button class="round-arrow" aria-label={currentSession.status === 'active' ? t('home.continue') : t('home.openPlan')} onClick={onContinue}><Icon name="arrow" /></button></div> : program ? <div class="program-home-card"><p class="eyebrow">{t('program.weeklyPlan')}</p><h2>{program.title}</h2><p>{t('program.sessionsPerWeek', { count: program.sessionsPerWeek })}</p><div class="program-home-progress"><div><span>{t('program.thisWeek')}</span><strong>{formatNumber(program.weekOf === weekKey() ? program.sessionsCompletedThisWeek : 0)}/{formatNumber(program.sessionsPerWeek)}</strong></div><span>{t('program.nextWorkout')} · {slotLabel(program)}</span></div><button class="button button-primary full-width" onClick={onStartProgram}>{t('program.startNext')}<Icon name="arrow" /></button><button class="text-button program-rebuild" onClick={onGenerate}>{t('program.changePlan')}</button></div> : <button class="button button-primary hero-cta" onClick={onGenerate}>{t('home.newWorkout')}<Icon name="arrow" /></button>}
+      {currentSession ? <div class="session-callout"><div class="callout-icon"><Icon name={currentSession.status === 'active' ? 'clock' : 'check'} /></div><div><strong>{currentSession.status === 'active' ? t('home.activeSession') : t('home.planned')}</strong><span>{currentSession.workout.title}</span></div><button class="round-arrow" aria-label={t('home.openPlan')} onClick={onContinue}><Icon name="arrow" /></button></div> : <button class="button button-primary hero-cta" onClick={onGenerate}>{t('home.newWorkout')}<Icon name="arrow" /></button>}
     </div><div class="hero-art" aria-hidden="true"><div class="art-orbit orbit-one" /><div class="art-orbit orbit-two" /><div class="art-disc"><span class="art-line line-one" /><span class="art-line line-two" /><span class="art-center">F</span></div><div class="art-label"><Icon name="spark" /><span>{t('home.ready')}</span></div></div></div>
     <div class="stats-grid"><button class="stat-card stat-feature stat-card-button" onClick={onOpenWeekHistory} aria-label={t('home.openWeekHistory')}><span class="stat-kicker">{t('home.week')}</span><strong>{formatNumber(thisWeek)}<small>{t('home.weekSessions')}</small></strong><span class="stat-foot">{t('home.viewWorkouts')}</span><div class="stat-bars" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} style={{ height: `${18 + ((thisWeek + i * 7) % 5) * 9}px`, opacity: i < thisWeek ? 1 : .28 }} />)}</div></button><div class="stat-card"><span class="stat-kicker">{t('home.sessions')}</span><strong>{formatNumber(completed.length)}</strong><span class="stat-foot">{t('home.consistency')}</span></div><div class="stat-card"><span class="stat-kicker">{t('home.minutesTrained')}</span><strong>{formatNumber(trained)}<small>{t('app.minutes')}</small></strong><span class="stat-foot">{last ? `${t('home.lastSession')} · ${formatDate(performedAt(last))}` : t('home.noSessions')}</span></div></div>
     {!currentSession && <section class="quote-card"><span class="quote-orb" aria-hidden="true">✳</span><p>{t('home.trainingNote')}</p><span class="quote-mark">{t('home.quoteMark')}</span></section>}
@@ -410,56 +327,44 @@ function HomeScreen({ sessions, currentSession, program, onGenerate, onStartProg
   </section>
 }
 
-function GenerateScreen({ settings, capabilities, sessions, program, onPlan, onCreateProgram }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; program: TrainingProgram | null; onPlan: (input: GenerateInput, apiKey: string, refineNext: boolean) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }>; onCreateProgram: (input: LocalProgramInput) => Promise<boolean> }) {
+function GenerateScreen({ settings, capabilities, sessions, refineSession, onPlan }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; refineSession: WorkoutSession | null; onPlan: (input: GenerateInput, apiKey: string, refineId: string | null) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }> }) {
   const [duration, setDuration] = useState(60)
-  const [sessionsPerWeekInput, setSessionsPerWeekInput] = useState('3')
   const [focus, setFocus] = useState('')
   const [feel, setFeel] = useState('')
   const [equipment, setEquipment] = useState(settings.equipment)
   const [preset, setPreset] = useState(settings.equipmentPreset)
   const [pending, setPending] = useState(false)
-  const [programPending, setProgramPending] = useState(false)
   const [error, setError] = useState('')
   const [apiKey, setApiKey] = useState(settings.apiKey)
   const [showKey, setShowKey] = useState(false)
-  const [refineNext, setRefineNext] = useState(false)
   const [usage, setUsage] = useState<{ promptTokens: number; completionTokens: number } | null>(null)
-  const sessionsPerWeek = Number(sessionsPerWeekInput)
-  const validSessionsPerWeek = /^\d+$/.test(sessionsPerWeekInput) && sessionsPerWeek >= 1 && sessionsPerWeek <= 7
-  const estimatedTokens = useMemo(() => estimateTokens(makePromptPayload({ duration, focus, feel, equipment }, settings, capabilities, sessions).payload), [duration, focus, feel, equipment, settings, capabilities, sessions])
+  const estimatedTokens = useMemo(() => estimateTokens(makePromptPayload({ duration, focus, feel, equipment, ...(refineSession ? { refineWorkout: refineSession.workout } : {}) }, settings, capabilities, sessions).payload), [duration, focus, feel, equipment, settings, capabilities, sessions, refineSession])
 
   const changePreset = (value: string) => { setPreset(value); if (presets[value]) setEquipment(presets[value]) }
   const submit = async (event: Event) => {
     event.preventDefault(); setError(''); setUsage(null)
     if (!apiKey.trim()) { setError('key'); return }
     setPending(true)
-    const result = await onPlan({ duration, focus, feel, equipment }, apiKey.trim(), refineNext && Boolean(program))
+    const result = await onPlan({ duration, focus, feel, equipment }, apiKey.trim(), refineSession?.id ?? null)
     setPending(false)
     if (result.ok) setUsage(result.usage)
     else setError(result.kind === 'invalid' || result.kind === 'generic' ? result.message : result.kind)
   }
-  const createOfflineProgram = async () => {
-    setError('')
-    setProgramPending(true)
-    await onCreateProgram({ duration, focus, feel, equipment, sessionsPerWeek })
-    setProgramPending(false)
-  }
   return <section class="builder-screen"><header class="section-intro"><p class="eyebrow">{t('generator.eyebrow')}</p><h1>{t('generator.title')}</h1><p>{t('generator.description')}</p></header>
     <form class="builder-card" onSubmit={submit}>
       <div class="form-group"><div class="label-row"><label for="duration">{t('generator.duration')}</label><output class="duration-value">{formatNumber(duration)} <small>{t('app.minutes')}</small></output></div><input id="duration" type="range" min="20" max="180" step="5" value={duration} onInput={event => setDuration(Number((event.currentTarget as HTMLInputElement).value))} /><div class="range-labels"><span>{formatNumber(20)} {t('app.minutes')}</span><span>{formatNumber(180)} {t('app.minutes')}</span></div><p class="field-hint">{t('generator.durationHelp')}</p></div>
-      <div class="form-row"><label class="form-group"><span>{t('generator.focus')}</span><input class="text-input" value={focus} maxlength={120} placeholder={t('generator.focusPlaceholder')} onInput={event => setFocus((event.currentTarget as HTMLInputElement).value)} /></label><label class="form-group"><span>{t('generator.feel')}</span><input class="text-input" value={feel} maxlength={160} placeholder={t('generator.feelPlaceholder')} onInput={event => setFeel((event.currentTarget as HTMLInputElement).value)} /></label></div>
+      <div class="form-row"><label class="form-group"><span>{t(refineSession ? 'generator.refineFocus' : 'generator.focus')}</span><input class="text-input" value={focus} maxlength={120} placeholder={t(refineSession ? 'generator.refineFocusPlaceholder' : 'generator.focusPlaceholder')} onInput={event => setFocus((event.currentTarget as HTMLInputElement).value)} /></label><label class="form-group"><span>{t('generator.feel')}</span><input class="text-input" value={feel} maxlength={160} placeholder={t('generator.feelPlaceholder')} onInput={event => setFeel((event.currentTarget as HTMLInputElement).value)} /></label></div>
       <div class="form-group"><label for="gen-preset">{t('settings.preset')}</label><select class="text-input" id="gen-preset" value={preset} onChange={event => changePreset((event.currentTarget as HTMLSelectElement).value)}><option value="park">{t('generator.presetPark')}</option><option value="gym">{t('generator.presetGym')}</option><option value="home">{t('generator.presetHome')}</option><option value="custom">{t('generator.presetCustom')}</option></select></div>
       <fieldset class="equipment-grid"><legend>{t('generator.equipment')}</legend>{equipmentKeys.map(key => <label class="check-chip" key={key}><input type="checkbox" checked={equipment.includes(key)} onChange={event => { setPreset('custom'); setEquipment(value => event.currentTarget.checked ? [...new Set([...value, key])] : value.filter(x => x !== key)) }} /><span class="check-mark"><Icon name="check" /></span>{t(`equipment.${key}` as TranslationKey)}</label>)}</fieldset>
-      <div class="offline-program-builder"><div><p class="eyebrow">{t('program.offlineEyebrow')}</p><h2>{t('program.offlineTitle')}</h2><p>{t('program.offlineBody')}</p></div><label class="form-group"><span>{t('program.sessionsPerWeekLabel')}</span><input class="text-input" type="number" min="1" max="7" step="1" inputMode="numeric" value={sessionsPerWeekInput} onInput={event => setSessionsPerWeekInput((event.currentTarget as HTMLInputElement).value)} /><small class="field-hint">{t('program.sessionsPerWeekHelp')}</small></label><button class="button button-primary full-width" type="button" disabled={programPending || pending || !equipment.length || !validSessionsPerWeek} onClick={() => void createOfflineProgram()}>{programPending ? <><span class="spinner" />{t('program.building')}</> : <>{t('program.createOffline')}<Icon name="arrow" /></>}</button><p class="privacy-line">{t('program.offlineNote')}</p></div>
-      <details class="ai-option"><summary>{t('program.aiOptional')}</summary><p class="card-description">{t('program.aiOptionalBody')}</p>
-        {program && <label class="check-chip ai-refine-choice"><input type="checkbox" checked={refineNext} onChange={event => setRefineNext(event.currentTarget.checked)} /><span class="check-mark"><Icon name="check" /></span>{t('program.refineNext')}</label>}
+      {refineSession && <p class="refine-context">{t('generator.refining', { title: refineSession.workout.title })}</p>}
+      <div class="ai-option"><p class="eyebrow">{t('generator.aiHeading')}</p>
         <div class="token-estimate"><span><Icon name="spark" />{t('generator.tokenEstimate')}</span><strong>{t('generator.estimatedTokens', { count: estimatedTokens })}</strong></div>
         {(!settings.apiKey || error === 'key') && <div class="settings-card generator-key-card"><p class="eyebrow">{t('generator.keyTitle')}</p><p class="card-description">{error === 'key' ? t('generator.errorKey') : t('generator.apiKeyMissing')}</p><label class="form-group"><span>{t('settings.apiKey')}</span><div class="input-with-action"><input class="text-input" type={showKey ? 'text' : 'password'} autocomplete="off" spellcheck={false} value={apiKey} placeholder={t('settings.apiKeyPlaceholder')} onInput={event => setApiKey((event.currentTarget as HTMLInputElement).value)} /><button class="show-key" type="button" onClick={() => setShowKey(!showKey)}>{showKey ? t('settings.hideKey') : t('settings.showKey')}</button></div><small class="field-hint">{t('settings.apiKeyHelp')}</small></label></div>}
         {error && error !== 'key' && <p class="form-error" role="alert">{error === 'rate' ? t('generator.errorRate') : error === 'network' ? t('generator.errorNetwork') : error}</p>}
-        <button class="button button-secondary full-width builder-submit" type="submit" disabled={pending || programPending || !equipment.length || !apiKey.trim()}>{pending ? <><span class="spinner" />{t('generator.building')}</> : <>{refineNext && program ? t('program.refineNextButton') : t('program.aiOneOff')}<Icon name="arrow" /></>}</button>
+        <button class="button button-secondary full-width builder-submit" type="submit" disabled={pending || !equipment.length || !apiKey.trim()}>{pending ? <><span class="spinner" />{t('generator.building')}</> : <>{refineSession ? t('generator.refineButton') : t('generator.generateButton')}<Icon name="arrow" /></>}</button>
         {usage && <p class="usage-note">{t('generator.usage', { prompt: usage.promptTokens, completion: usage.completionTokens })}</p>}
         <p class="privacy-line">{t('app.notice')}</p>
-      </details>
+      </div>
     </form>
   </section>
 }
@@ -475,9 +380,9 @@ function SwapPicker({ replacements, onChoose }: { replacements: ReturnType<typeo
   </div>
 }
 
-function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpdates, onHome }: {
-  session: WorkoutSession | null; settings: AppSettings; onStart: (id: string) => unknown; onFinish: (id: string, autoStop?: boolean, autoStopAt?: string) => unknown
-  mutate: (transform: (current: WorkoutSession) => WorkoutSession, id?: string) => unknown; onApplyUpdates: (id: string) => Promise<void>; onHome: () => void
+function RunnerScreen({ session, settings, onFinish, mutate, onApplyUpdates, onRefine, onHome }: {
+  session: WorkoutSession | null; settings: AppSettings; onFinish: (id: string) => unknown
+  mutate: (transform: (current: WorkoutSession) => WorkoutSession, id?: string) => unknown; onApplyUpdates: (id: string) => Promise<void>; onRefine: (id: string) => void; onHome: () => void
 }) {
   const [now, setNow] = useState(Date.now())
   const [finishing, setFinishing] = useState(false)
@@ -487,19 +392,23 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   const lockRef = useRef<{ release: () => Promise<void> } | null>(null)
   const beepedRef = useRef<string | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
-  const lastActivityRef = useRef(Date.now())
-  const finishRef = useRef(onFinish)
-  finishRef.current = onFinish
   useEffect(() => { const interval = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(interval) }, [])
   const timerLeft = secondsRemaining(session?.timerEndsAt ?? null, now)
   const holdTimer = session?.holdTimer ?? null
   const holdElapsed = holdTimer ? Math.max(0, Math.floor((now - holdTimer.startedAt) / 1000)) : 0
   const holdRemaining = holdTimer ? Math.max(0, holdTimer.targetSeconds - holdElapsed) : 0
   const primeAudio = () => {
+    if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission().catch(() => undefined)
     const Audio = window.AudioContext
     if (!Audio) return
     if (!audioContextRef.current || audioContextRef.current.state === 'closed') audioContextRef.current = new Audio()
     void audioContextRef.current.resume().catch(() => undefined)
+  }
+  const notifyTimer = (tag: string) => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
+    const options = { body: t('runner.timerDone'), tag, requireInteraction: true }
+    if (navigator.serviceWorker) void navigator.serviceWorker.ready.then(registration => registration.showNotification('FORM', options)).catch(() => undefined)
+    else new Notification('FORM', options)
   }
   const playSignal = () => {
     primeAudio()
@@ -539,6 +448,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     beepedRef.current = key
     navigator.vibrate?.([300, 120, 300, 120, 500])
     playSignal()
+    notifyTimer(key)
   }, [session?.id, session?.timerEndsAt, timerLeft])
   useEffect(() => {
     if (!holdTimer || holdElapsed < holdTimer.targetSeconds) return
@@ -547,21 +457,8 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     beepedRef.current = key
     navigator.vibrate?.([300, 120, 300, 120, 500])
     playSignal()
+    notifyTimer(key)
   }, [session?.id, holdTimer?.startedAt, holdTimer?.targetSeconds, holdElapsed])
-  useEffect(() => {
-    if (session?.status !== 'active') return
-    lastActivityRef.current = Date.now()
-    const resumeIdleWindow = () => { lastActivityRef.current = Date.now() }
-    const interval = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') { lastActivityRef.current = Date.now(); return }
-      if (Date.now() - lastActivityRef.current >= 60 * 60 * 1000) {
-        window.clearInterval(interval)
-        void finishRef.current(session.id, true, new Date(lastActivityRef.current).toISOString())
-      }
-    }, 15000)
-    document.addEventListener('visibilitychange', resumeIdleWindow)
-    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', resumeIdleWindow) }
-  }, [session?.id, session?.status])
   useEffect(() => () => { if (audioContextRef.current) void audioContextRef.current.close() }, [])
   useEffect(() => {
     if (!exerciseDetail) return
@@ -575,7 +472,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
   const progressed = session.workout.blocks.reduce((sum, block) => sum + block.items.reduce((inner, item) => inner + (item.skipped ? item.sets : item.log.filter(set => set.done).length), 0), 0)
   const progress = planned ? Math.round(progressed / planned * 100) : 0
   const hasWeightedExercises = session.workout.blocks.some(block => block.items.some(item => exerciseById.get(item.ex)?.loadable))
-  const elapsed = minutesBetween(session.startedAt, session.status === 'completed' ? session.finishedAt : new Date(now).toISOString())
+  const elapsed = activityMinutes(session)
   const byId = (blockIndex: number, itemIndex: number, transform: (item: WorkoutItem) => WorkoutItem, timer?: number | null) => {
     mutate(current => ({ ...current, workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== blockIndex ? block : ({ ...block, items: block.items.map((item, ii) => ii === itemIndex ? transform(item) : item) })) }, ...(timer === undefined ? {} : { timerEndsAt: timer }) }), session.id)
   }
@@ -584,7 +481,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     primeAudio()
     const targetSeconds = session.workout.blocks[blockIndex].items[itemIndex].log[setIndex].reps
     const startedAt = Date.now()
-    mutate(current => ({ ...current, status: 'active', startedAt: current.startedAt ?? new Date(startedAt).toISOString(), timerEndsAt: null,
+    mutate(current => ({ ...current, status: 'active', timerEndsAt: null,
       holdTimer: { blockIndex, itemIndex, setIndex, startedAt, targetSeconds } }), session.id)
   }
   const stopHoldTimer = () => {
@@ -621,7 +518,6 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     mutate(current => ({
       ...current,
       status: current.status === 'planned' ? 'active' : current.status,
-      startedAt: current.status === 'planned' ? completedAt : current.startedAt,
       timerEndsAt: timer,
       holdTimer: null,
       workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== blockIndex ? block : ({
@@ -652,7 +548,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     const guide = exerciseGuideFor(exerciseDetail.id)
     const frames = exerciseImages[exerciseDetail.id as keyof typeof exerciseImages]?.frames ?? []
     const fallbackSteps = [t('runner.customGuideSetup'), t('runner.customGuideControl'), t('runner.guideSafety')]
-    return <section class="exercise-detail-screen" onPointerDown={() => { lastActivityRef.current = Date.now() }} onKeyDown={() => { lastActivityRef.current = Date.now() }} onWheel={() => { lastActivityRef.current = Date.now() }}>
+    return <section class="exercise-detail-screen">
       <button class="back-link" onClick={returnToPlan}><span>←</span>{t('runner.backToPlan')}</button>
       <p class="eyebrow">{t('runner.exerciseGuide')}</p>
       <h1>{exerciseDetail.name}</h1>
@@ -668,14 +564,14 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
     </section>
   }
 
-  if (session.status === 'completed') return <section class="finish-summary-screen"><div class="success-emblem"><Icon name="check" /></div><p class="eyebrow">{t('runner.finishTitle')}</p><h1>{session.workout.title}</h1><p class="summary-lede">{t('runner.finishBody')}</p><div class="finish-stats"><div><strong>{completionRate(session)}%</strong><span>{t('runner.completion')}</span></div><div><strong>{elapsed} <small>{t('app.minutes')}</small></strong><span>{t('history.totalTime')}</span></div><div><strong>{session.rpe ?? '—'}/10</strong><span>{t('history.rpe')}</span></div></div>{session.note && <blockquote class="finish-note">“{session.note}”</blockquote>}<button class="button button-secondary full-width" onClick={onHome}>{t('app.today')}<Icon name="arrow" /></button></section>
+  if (session.status === 'completed') return <section class="finish-summary-screen"><div class="success-emblem"><Icon name="check" /></div><p class="eyebrow">{t('runner.finishTitle')}</p><h1>{session.workout.title}</h1><p class="summary-lede">{t('runner.finishBody')}</p><div class="finish-stats"><div><strong>{completionRate(session)}%</strong><span>{t('runner.completion')}</span></div><div><strong>{elapsed} <small>{t('app.minutes')}</small></strong><span>{t('runner.activityTime')}</span></div><div><strong>{session.rpe ?? '—'}/10</strong><span>{t('history.rpe')}</span></div></div>{session.note && <blockquote class="finish-note">“{session.note}”</blockquote>}<button class="button button-secondary full-width" onClick={onHome}>{t('app.today')}<Icon name="arrow" /></button></section>
 
-  return <section class="runner-screen" onPointerDown={() => { lastActivityRef.current = Date.now() }} onKeyDown={() => { lastActivityRef.current = Date.now() }} onWheel={() => { lastActivityRef.current = Date.now() }}>
-    <header class="runner-head"><div><p class="eyebrow">{session.status === 'active' ? t('runner.eyebrow') : t('history.planned')}</p><h1>{session.workout.title}</h1></div><div class="runner-head-time"><strong>{elapsed}</strong><span>{t('app.minutes')}</span></div></header>
-    {session.status === 'planned' && <div class="runner-start-panel"><p>{t('runner.plannedNotice')}</p><button class="button button-primary" onClick={() => void onStart(session.id)}>{t('runner.start')}<Icon name="arrow" /></button></div>}
-    <div class="runner-progress"><div class="progress-label"><span>{t('runner.progress')}</span><strong>{formatNumber(progress)}%</strong></div><div class="progress-track"><i style={{ width: `${progress}%` }} /></div><div class="progress-meta"><span>{formatNumber(done)}/{formatNumber(planned)} {t('runner.setsDone')}</span>{session.status === 'active' && <span>{t('runner.elapsed')} · {formatNumber(elapsed)} {t('app.minutes')}</span>}</div></div>
+  return <section class="runner-screen">
+    <header class="runner-head"><div><p class="eyebrow">{session.status === 'active' ? t('runner.eyebrow') : t('history.planned')}</p><h1>{session.workout.title}</h1></div><div class="runner-head-time"><strong>{elapsed}</strong><span>{t('runner.activityTime')}</span></div></header>
+    <div class="runner-progress"><div class="progress-label"><span>{t('runner.progress')}</span><strong>{formatNumber(progress)}%</strong></div><div class="progress-track"><i style={{ width: `${progress}%` }} /></div><div class="progress-meta"><span>{formatNumber(done)}/{formatNumber(planned)} {t('runner.setsDone')}</span><span>{t('runner.activityTime')} · {formatNumber(elapsed)} {t('app.minutes')}</span></div></div>
     {hasWeightedExercises && <p class="load-guidance">{t('runner.loadGuidance')}</p>}
     <div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{session.workout.coach}</strong></div></div>
+    {session.status === 'planned' && <button class="text-button refine-workout-button" onClick={() => onRefine(session.id)}><Icon name="spark" />{t('generator.refineButton')}</button>}
     {session.usage && <p class="actual-usage">{t('generator.usage', { prompt: session.usage.promptTokens, completion: session.usage.completionTokens })}</p>}
       <div class="workout-blocks">{session.workout.blocks.map((block, bi) => <section class="workout-block" key={`${session.id}-${bi}`}><header class="block-heading"><span class="block-index">{String(bi + 1).padStart(2, '0')}</span><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2></header>
       {block.items.map((item, ii) => {
@@ -700,7 +596,7 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
           {!item.skipped && <div class="set-list">{item.log.map((set, si) => <div class={`set-row ${set.done ? 'set-done' : ''}`} key={si}><div class="set-number">{new Intl.NumberFormat(currentLanguage(), { minimumIntegerDigits: 2, useGrouping: false }).format(si + 1)}</div><div class="set-target">{t('app.setCount', { count: si + 1 })}<span>{formatNumber(set.reps)} {item.u === 'r' ? t('app.reps') : t('app.seconds')}</span></div>
             <div class="set-steppers"><div class="stepper" aria-label={t('runner.adjustReps')}><button aria-label={`${t('runner.adjustReps')} −`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: Math.max(0, set.reps - (item.u === 's' ? 5 : 1)) })}><Icon name="minus" /></button><strong>{set.reps}</strong><button aria-label={`${t('runner.adjustReps')} +`} disabled={session.status !== 'active'} onClick={() => adjustSet(bi, ii, si, { reps: set.reps + (item.u === 's' ? 5 : 1) })}><Icon name="plus" /></button></div>
               {exercise?.loadable && <label class="load-input-wrap"><span class="visually-hidden">{t('runner.adjustLoad')} · {t('app.setCount', { count: si + 1 })}</span><input class="load-input" type="number" min="0" step="1" inputMode="numeric" aria-label={`${t('runner.adjustLoad')} · ${t('app.setCount', { count: si + 1 })}`} value={set.loadKg === null ? '' : Math.round(settings.units === 'lb' ? set.loadKg * 2.20462 : set.loadKg)} disabled={session.status !== 'active'} onInput={event => { const value = (event.currentTarget as HTMLInputElement).value; adjustSet(bi, ii, si, { loadKg: value === '' ? null : toKg(Math.max(0, Math.trunc(Number(value))), settings.units) }) }} /><small>{settings.units}</small></label>}
-            </div><button class={`complete-set ${set.done ? 'is-done' : ''}`} disabled={session.status !== 'active' || item.u === 's' || holdTimer !== null} aria-pressed={set.done} aria-label={`${exerciseLabel}, ${t('app.setCount', { count: si + 1 })}, ${t(set.done ? 'runner.completed' : 'runner.markDone')}`} onClick={() => toggleSet(bi, ii, si)}>{set.done ? <Icon name="check" /> : <span />}</button></div>)}</div>}
+            </div><button class={`complete-set ${set.done ? 'is-done' : ''}`} disabled={session.status === 'completed' || item.u === 's' || holdTimer !== null} aria-pressed={set.done} aria-label={`${exerciseLabel}, ${t('app.setCount', { count: si + 1 })}, ${t(set.done ? 'runner.completed' : 'runner.markDone')}`} onClick={() => toggleSet(bi, ii, si)}>{set.done ? <Icon name="check" /> : <span />}</button></div>)}</div>}
           {session.status === 'active' && item.u === 's' && !item.skipped && item.log.some(set => !set.done) && (() => {
             const nextSetIndex = item.log.findIndex(set => !set.done)
             return <div class="hold-start-row"><span>{t('runner.holdNextSet', { count: nextSetIndex + 1, seconds: item.log[nextSetIndex].reps })}</span><button disabled={holdTimer !== null} onClick={() => startHoldTimer(bi, ii, nextSetIndex)}><Icon name="clock" />{holdTimer ? t('runner.holdTimerRunning') : t('runner.startHold')}</button></div>
@@ -711,14 +607,14 @@ function RunnerScreen({ session, settings, onStart, onFinish, mutate, onApplyUpd
       })}
     </section>)}</div>
     {session.status === 'active' && !finishing && <button class="button button-secondary full-width runner-bottom-button" disabled={holdTimer !== null} onClick={() => { setFinishing(true); if (session.timerEndsAt !== null) void mutate(current => ({ ...current, timerEndsAt: null }), session.id) }}>{t('runner.finish')}<Icon name="check" /></button>}
-    {session.status === 'active' && finishing && <div class="finish-form-card"><p class="eyebrow">{t('runner.finishTitle')}</p><h2>{t('runner.finishBody')}</h2><div class="finish-stats compact"><div><strong>{formatNumber(completionRate(session))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(elapsed)} {t('app.minutes')}</strong><span>{t('history.totalTime')}</span></div></div><div class="form-group"><span>{t('runner.rpe')}</span><div class="rpe-labels"><small>{t('runner.rpeLow')}</small><small>{t('runner.rpeHigh')}</small></div><div class="rpe-scale">{Array.from({ length: 10 }, (_, i) => i + 1).map(value => <button type="button" class={session.rpe === value ? 'selected' : ''} aria-label={`${t('runner.rpe')} ${formatNumber(value)}`} aria-pressed={session.rpe === value} onClick={() => mutate(current => ({ ...current, rpe: value }), session.id)}>{formatNumber(value)}</button>)}</div></div><label class="form-group"><span>{t('runner.sessionNote')}</span><textarea class="text-input textarea" value={session.note} maxlength={600} placeholder={t('runner.notePlaceholder')} onInput={event => mutate(current => ({ ...current, note: (event.currentTarget as HTMLTextAreaElement).value }), session.id)} /></label>
+    {session.status === 'active' && finishing && <div class="finish-form-card"><p class="eyebrow">{t('runner.finishTitle')}</p><h2>{t('runner.finishBody')}</h2><div class="finish-stats compact"><div><strong>{formatNumber(completionRate(session))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(elapsed)} {t('app.minutes')}</strong><span>{t('runner.activityTime')}</span></div></div><div class="form-group"><span>{t('runner.rpe')}</span><div class="rpe-labels"><small>{t('runner.rpeLow')}</small><small>{t('runner.rpeHigh')}</small></div><div class="rpe-scale">{Array.from({ length: 10 }, (_, i) => i + 1).map(value => <button type="button" class={session.rpe === value ? 'selected' : ''} aria-label={`${t('runner.rpe')} ${formatNumber(value)}`} aria-pressed={session.rpe === value} onClick={() => mutate(current => ({ ...current, rpe: value }), session.id)}>{formatNumber(value)}</button>)}</div></div><label class="form-group"><span>{t('runner.sessionNote')}</span><textarea class="text-input textarea" value={session.note} maxlength={600} placeholder={t('runner.notePlaceholder')} onInput={event => mutate(current => ({ ...current, note: (event.currentTarget as HTMLTextAreaElement).value }), session.id)} /></label>
       {session.workout.cap_updates.length > 0 && <div class="suggestion-box"><p>{t('runner.capSuggestion')}</p>{session.workout.cap_updates.map(update => <span key={update.ex}>{nameFor(update.ex)} · {update.max !== null ? `${update.max} ${t('app.reps')}` : `${formatLoad(update.load, settings.units)} ${settings.units} × ${update.reps}`}</span>)}<button class="text-button" onClick={() => void onApplyUpdates(session.id)}>{t('runner.applySuggestions')}<Icon name="arrow" /></button></div>}
       <button class="button button-primary full-width" onClick={() => void onFinish(session.id)}>{t('runner.finish')}<Icon name="check" /></button><button class="text-button center-button" onClick={() => setFinishing(false)}>{t('app.cancel')}</button></div>}
     {timerDock}
   </section>
 }
 
-function HistoryScreen({ sessions, weights, units, detail, weekOnly, onShowAll, onOpen, onClose, onStart, onRemove }: { sessions: WorkoutSession[]; weights: WeightEntry[]; units: 'kg' | 'lb'; detail: WorkoutSession | null; weekOnly: boolean; onShowAll: () => void; onOpen: (id: string) => void; onClose: () => void; onStart: (id: string) => void; onRemove: (id: string) => void }) {
+function HistoryScreen({ sessions, weights, units, detail, weekOnly, onShowAll, onOpen, onClose, onRemove }: { sessions: WorkoutSession[]; weights: WeightEntry[]; units: 'kg' | 'lb'; detail: WorkoutSession | null; weekOnly: boolean; onShowAll: () => void; onOpen: (id: string) => void; onClose: () => void; onRemove: (id: string) => void }) {
   const completed = sessions.filter(session => session.status === 'completed').sort((a, b) => performedAt(a).localeCompare(performedAt(b)))
   const visibleSessions = weekOnly ? sessions.filter(session => session.status === 'completed' && weekKey(new Date(performedAt(session))) === weekKey()) : sessions
   const allIds = [...new Set(completed.flatMap(session => session.workout.blocks.flatMap(block => block.items.map(item => item.ex))))]
@@ -747,7 +643,7 @@ function HistoryScreen({ sessions, weights, units, detail, weekOnly, onShowAll, 
     return `${x},${y}`
   }).join(' ')
 
-  if (detail) return <section class="history-detail"><button class="back-link" onClick={onClose}><span>←</span>{t('app.back')}</button><p class="eyebrow">{formatDate(performedAt(detail))}</p><h1>{detail.workout.title}</h1><p class="detail-status">{t(`history.${detail.status}` as TranslationKey)}</p>{detail.status === 'planned' && <button class="button button-primary history-detail-start" onClick={() => onStart(detail.id)}>{t('runner.start')}<Icon name="arrow" /></button>}<div class="finish-stats"><div><strong>{formatNumber(completionRate(detail))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(minutesBetween(detail.startedAt, detail.finishedAt))} <small>{t('app.minutes')}</small></strong><span>{t('history.totalTime')}</span></div><div><strong>{detail.rpe === null ? '—' : formatNumber(detail.rpe)}/10</strong><span>{t('history.rpe')}</span></div></div>{detail.note && <blockquote class="finish-note">“{detail.note}”</blockquote>}<div class="detail-exercises">{detail.workout.blocks.map((block, bi) => <div class="detail-block" key={bi}><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2>{block.items.map((item, ii) => <div class="detail-exercise" key={`${bi}-${ii}`}><span>{exerciseText(item.ex).name}</span><strong>{formatNumber(item.log.filter(set => set.done).length)}/{formatNumber(item.sets)} {t('app.sets')}</strong><small>{item.log.filter(set => set.done).map(set => `${formatNumber(set.reps)}${set.loadKg !== null ? ` · ${formatLoad(set.loadKg, units)} ${units}` : ''}`).join(' / ')}</small></div>)}</div>)}</div><div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{detail.workout.coach}</strong></div></div></section>
+  if (detail) return <section class="history-detail"><button class="back-link" onClick={onClose}><span>←</span>{t('app.back')}</button><p class="eyebrow">{formatDate(performedAt(detail))}</p><h1>{detail.workout.title}</h1><p class="detail-status">{t(`history.${detail.status}` as TranslationKey)}</p><div class="finish-stats"><div><strong>{formatNumber(completionRate(detail))}%</strong><span>{t('runner.completion')}</span></div><div><strong>{formatNumber(activityMinutes(detail))} <small>{t('app.minutes')}</small></strong><span>{t('runner.activityTime')}</span></div><div><strong>{detail.rpe === null ? '—' : formatNumber(detail.rpe)}/10</strong><span>{t('history.rpe')}</span></div></div>{detail.note && <blockquote class="finish-note">“{detail.note}”</blockquote>}<div class="detail-exercises">{detail.workout.blocks.map((block, bi) => <div class="detail-block" key={bi}><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2>{block.items.map((item, ii) => <div class="detail-exercise" key={`${bi}-${ii}`}><span>{exerciseText(item.ex).name}</span><strong>{formatNumber(item.log.filter(set => set.done).length)}/{formatNumber(item.sets)} {t('app.sets')}</strong><small>{item.log.filter(set => set.done).map(set => `${formatNumber(set.reps)}${set.loadKg !== null ? ` · ${formatLoad(set.loadKg, units)} ${units}` : ''}`).join(' / ')}</small></div>)}</div>)}</div><div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{detail.workout.coach}</strong></div></div></section>
 
   return <section class="history-screen"><header class="section-intro"><p class="eyebrow">{t('history.eyebrow')}</p><h1>{t('history.title')}</h1><p>{t('history.description')}</p>{weekOnly && <div class="history-filter-row"><span>{t('history.thisWeekList')}</span><button class="text-button" onClick={onShowAll}>{t('history.showAll')}</button></div>}</header>
     {!weekOnly && <div class="history-insight-row"><div class="insight-card"><span>{t('history.averageCompletion')}</span><strong>{formatNumber(summary.avg_completion)}<small>%</small></strong></div><div class="insight-card"><span>{t('history.weightTrend')}</span><strong>{weights.length ? `${formatLoad(weights.at(-1)?.weightKg ?? null, units)} ${units}` : '—'}</strong><small>{weights.at(-1) ? formatDate(weights.at(-1)!.date) : t('settings.never')}</small></div></div>}
@@ -757,14 +653,13 @@ function HistoryScreen({ sessions, weights, units, detail, weekOnly, onShowAll, 
   </section>
 }
 
-function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, storageEstimate, onSave, onRecordWeight, onSaveCapability, onRemoveCapability, onExport, onImportClick }: {
-  settings: AppSettings; setDraft: (value: AppSettings) => void; capabilities: Capability[]; meta: AppMeta
+function SettingsScreen({ settings, setDraft, capabilities, persistState, storageEstimate, onSave, onRecordWeight, onSaveCapability, onRemoveCapability }: {
+  settings: AppSettings; setDraft: (value: AppSettings) => void; capabilities: Capability[]
   persistState: PersistState; storageEstimate: { usage?: number; quota?: number }; onSave: (value: AppSettings) => Promise<void>
   onRecordWeight: (value: AppSettings) => Promise<void>
-  onSaveCapability: (value: Capability) => Promise<void>; onRemoveCapability: (id: string) => Promise<void>; onExport: (includeKey: boolean) => Promise<void>; onImportClick: () => void
+  onSaveCapability: (value: Capability) => Promise<void>; onRemoveCapability: (id: string) => Promise<void>
 }) {
   const [showKey, setShowKey] = useState(false)
-  const [includeKey, setIncludeKey] = useState(false)
   const [selectedId, setSelectedId] = useState(commonCapabilityIds[0])
   const [capMode, setCapMode] = useState<'max' | 'load'>('max')
   const [maxInput, setMaxInput] = useState('')
@@ -829,13 +724,6 @@ function SettingsScreen({ settings, setDraft, capabilities, meta, persistState, 
       <section class="settings-card data-card"><div class="settings-card-heading"><span class="section-number">05</span><div><p class="eyebrow">{t('settings.dataTitle')}</p><h2>{t('settings.dataTitle')}</h2></div><span class="section-icon"><Icon name="history" /></span></div>
         <div class="storage-status"><div class="storage-status-icon"><Icon name="check" /></div><div><span>{t('settings.persistent')}</span><strong class={persistState === 'yes' ? 'status-good' : 'status-warn'}>{t(persistState === 'yes' ? 'settings.persistentYes' : persistState === 'no' ? 'settings.persistentNo' : 'settings.persistentUnsupported')}</strong></div></div>
         <div class="storage-usage"><span>{t('settings.storageUsed', { used: byteSize(storageEstimate.usage), quota: byteSize(storageEstimate.quota) })}</span><div class="usage-track"><i style={{ width: `${storageEstimate.usage && storageEstimate.quota ? Math.min(100, storageEstimate.usage / storageEstimate.quota * 100) : 0}%` }} /></div></div>
-        <div class="backup-date"><span>{t('settings.lastBackup')}</span><strong>{meta.lastBackupAt ? formatDate(meta.lastBackupAt) : t('settings.never')}</strong></div>
-        <p class="card-description">{t('settings.backupInfo')}</p>
-        <label class="check-chip include-key"><input type="checkbox" checked={includeKey} onChange={event => setIncludeKey(event.currentTarget.checked)} /><span class="check-mark"><Icon name="check" /></span>{t('settings.exportWithKey')}</label>
-        <button class="button button-secondary full-width" onClick={() => void onExport(includeKey)}>{t('settings.export')}<Icon name="arrow" /></button>
-        <button class="button button-outline full-width" onClick={onImportClick}>{t('settings.import')}<Icon name="arrow" /></button>
-        <small class="field-hint">{t('app.notice')}</small>
-        <div class="backup-date"><span>{t('settings.version')}</span><strong>{__APP_VERSION__} · {__APP_BUILD_TIME__.slice(0, 19).replace('T', ' ')} UTC</strong></div>
       </section>
     </div>
   </section>

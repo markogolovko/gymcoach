@@ -1,5 +1,13 @@
 import type { WorkoutSession } from '../storage/types'
 
+export function weekKey(date = new Date()): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const day = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - day)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return `${d.getUTCFullYear()}-W${String(Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)).padStart(2, '0')}`
+}
+
 export interface ExerciseBest { best: number; trend: 'up' | 'flat' | 'down'; recent: number[] }
 export interface HistorySummary {
   last: Array<[string, Array<[string, Array<number | null>, Array<number | null>, number, number | null]>]>
@@ -8,7 +16,6 @@ export interface HistorySummary {
 }
 
 export function performedAt(session: WorkoutSession): string {
-  if (session.startedAt) return session.startedAt
   const setDates = session.workout.blocks.flatMap(block => block.items.flatMap(item => item.log
     .filter(set => set.done && set.completedAt)
     .map(set => set.completedAt as string)))
@@ -76,4 +83,11 @@ export function plannedSetCount(session: WorkoutSession): number {
 
 export function doneSetCount(session: WorkoutSession): number {
   return session.workout.blocks.reduce((sum, block) => sum + block.items.reduce((inner, item) => inner + item.log.filter(set => set.done).length, 0), 0)
+}
+
+/** Active exercise time only: timed holds use their logged duration; reps use a conservative 3 seconds each. */
+export function activityMinutes(session: WorkoutSession): number {
+  const seconds = session.workout.blocks.reduce((total, block) => total + block.items.reduce((itemTotal, item) =>
+    itemTotal + item.log.filter(set => set.done).reduce((setTotal, set) => setTotal + (item.u === 's' ? set.reps : set.reps * 3), 0), 0), 0)
+  return seconds > 0 ? Math.ceil(seconds / 60) : 0
 }

@@ -1,11 +1,11 @@
-import type { AppSettings, Capability, Equipment, WorkoutSession } from '../storage/types'
+import type { AppSettings, Capability, Equipment, WorkoutPlan, WorkoutSession } from '../storage/types'
 import { exerciseById, filterCatalog } from './catalog'
 import { summarizeHistory } from './history'
 import { workoutJsonSchema } from './workout-schema'
 
-export const SYSTEM_PROMPT = 'You are a careful strength coach. Build a safe, balanced workout using only supplied exercise IDs and equipment. IDs in allowed.r are rep-based and must use u:"r"; IDs in allowed.s are time-based and must use u:"s". Only IDs in allowed.load may have a non-null load. For every loadable exercise, provide a realistic, conservative non-zero starting load; use capability and history data when available, otherwise estimate from the profile and equipment. Do not use a generic 5 kg estimate for selectorized compound machines such as chest_press_machine; use at least 15 kg when no personal history suggests another load. The user can adjust each set independently. For cap_updates, use max alone for bodyweight capabilities or load and reps together for weighted capabilities; set all other fields to null. Omit a capability update if unsure. Return only the requested compact JSON. Respect capability and recent training data; suggest conservative progression. Do not invent catalog IDs. Custom movements are allowed only when no listed ID fits. Write coach and notes in the requested language, each coach field at most two short sentences.'
+export const SYSTEM_PROMPT = 'You are a careful strength coach. Build a safe, balanced workout using only supplied exercise IDs and equipment. If workout_to_refine is provided, revise that workout to satisfy the request while preserving useful structure and exercise choices where appropriate. IDs in allowed.r are rep-based and must use u:"r"; IDs in allowed.s are time-based and must use u:"s". Only IDs in allowed.load may have a non-null load. For every loadable exercise, provide a realistic, conservative non-zero starting load; use capability and history data when available, otherwise estimate from the profile and equipment. Do not use a generic 5 kg estimate for selectorized compound machines such as chest_press_machine; use at least 15 kg when no personal history suggests another load. The user can adjust each set independently. For cap_updates, use max alone for bodyweight capabilities or load and reps together for weighted capabilities; set all other fields to null. Omit a capability update if unsure. Return only the requested compact JSON. Respect capability and recent training data; suggest conservative progression. Do not invent catalog IDs. Custom movements are allowed only when no listed ID fits. Write coach and notes in the requested language, each coach field at most two short sentences.'
 
-export interface GenerateInput { duration: number; focus: string; feel: string; equipment: Equipment[] }
+export interface GenerateInput { duration: number; focus: string; feel: string; equipment: Equipment[]; refineWorkout?: WorkoutPlan }
 
 export function makePromptPayload(input: GenerateInput, settings: AppSettings, capabilities: Capability[], sessions: WorkoutSession[]) {
   const highestKnownLevel = Math.max(0, ...capabilities.map(cap => exerciseById.get(cap.exerciseId)?.level ?? 0))
@@ -21,6 +21,7 @@ export function makePromptPayload(input: GenerateInput, settings: AppSettings, c
     capabilities: caps,
     style: settings.style.slice(0, 500),
     request: { duration: input.duration, focus: input.focus.slice(0, 120), feel: input.feel.slice(0, 160), equipment: input.equipment, language: 'en' },
+    ...(input.refineWorkout ? { workout_to_refine: input.refineWorkout } : {}),
     history,
     allowed: {
       r: allowed.filter(exercise => exercise.type === 'reps').map(exercise => exercise.id),

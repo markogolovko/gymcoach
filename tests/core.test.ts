@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, type AppSnapshot, type Storage, type WorkoutSession } from '../src/storage/types'
+import { DEFAULT_SETTINGS, type WorkoutSession } from '../src/storage/types'
 import { summarizeHistory } from '../src/lib/history'
 import { validateWorkout } from '../src/lib/workout-schema'
 import { adjustEndTime, formatTimer, secondsRemaining } from '../src/lib/timer'
-import { createBackup, parseBackup, restoreBackup } from '../src/lib/backup'
 import { setLanguage, t } from '../src/i18n'
 
 function session(id: string, createdAt: string, status: 'planned' | 'active' | 'completed' = 'completed', reps = 8): WorkoutSession {
   return {
-    id, status, createdAt, startedAt: createdAt, finishedAt: status === 'completed' ? createdAt : null, timerEndsAt: null,
+    id, status, createdAt, finishedAt: status === 'completed' ? createdAt : null, timerEndsAt: null,
     workout: { v: 1, title: 'Test session', est_min: 35, coach: 'Stay smooth.', cap_updates: [], blocks: [{ t: 'main', items: [{
       ex: 'pull_up', name: null, sets: 2, tgt: 8, u: 'r', load: null, rest: 60, note: null, skipped: false,
       log: [{ done: true, reps, loadKg: null, completedAt: createdAt }, { done: true, reps: reps - 1, loadKg: null, completedAt: createdAt }],
@@ -81,31 +80,5 @@ describe('i18n', () => {
     expect(t('settings.apiKey')).toBe('OpenAI API key')
     expect(t('app.setCount', { count: 1 })).toBe('Set 1')
     expect(t('app.setCount', { count: 4 })).toBe('Set 4')
-  })
-})
-
-describe('backup round trip', () => {
-  it('exports a versioned snapshot and restores it through the Storage interface', async () => {
-    let current: AppSnapshot = {
-      format: 'ai-gym-coach-backup', version: 1, exportedAt: '2026-10-18T12:00:00.000Z',
-      settings: { ...DEFAULT_SETTINGS, apiKey: 'secret-test-key' }, capabilities: [], weights: [],
-      sessions: [session('one', '2026-10-18T10:00:00.000Z')], meta: { lastBackupAt: null, schemaVersion: 1 },
-    }
-    const fake = {
-      exportSnapshot: async (includeKey = false) => {
-        const snapshot = structuredClone(current)
-        if (!includeKey) snapshot.settings.apiKey = ''
-        return snapshot
-      },
-      replaceSnapshot: async (snapshot: AppSnapshot) => { current = structuredClone(snapshot) },
-    } as unknown as Storage
-    const blob = await createBackup(fake, false)
-    const parsed = parseBackup(await blob.text())
-    expect(parsed.settings.apiKey).toBe('')
-    expect(parsed.sessions).toHaveLength(1)
-    await restoreBackup(fake, await blob.text())
-    expect(current.sessions[0].id).toBe('one')
-    expect(current.settings.apiKey).toBe('')
-    expect(current.meta.lastBackupAt).not.toBeNull()
   })
 })

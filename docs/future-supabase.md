@@ -1,6 +1,6 @@
 # Future Supabase adapter (not implemented)
 
-The `Storage` interface in `src/storage/types.ts` deliberately exposes async domain operations and snapshot import/export rather than IndexedDB transactions. A future sync adapter can implement the same interface without leaking Supabase types into screens.
+The `Storage` interface in `src/storage/types.ts` exposes async domain operations rather than IndexedDB transactions or file-based recovery. A future sync adapter can implement the same interface without leaking Supabase types into screens.
 
 ## Suggested tables
 
@@ -17,6 +17,6 @@ Enable row-level security on every user-owned table and scope reads/writes to `a
 
 ## Sync approach
 
-Keep IndexedDB as the offline-first working store. Add an outbox of changed record IDs and `updated_at` values. After authentication and connectivity, push outbox entries, pull records newer than the device cursor, then clear acknowledged entries. Use stable UUIDs for sessions, blocks, items, and set logs; exercise IDs remain catalog IDs. Avoid whole-database last-write-wins: merge independent set logs by ID and show a conflict when the same set or settings field changed on two devices. Tombstones are needed for deletions. Version every serialized record and write migrations before sending newer rows.
+Move persisted user data to Supabase after authentication is introduced. If a local cache remains for responsiveness, treat Supabase as the source of truth and reconcile changed record IDs with `updated_at` values after each request. Use stable UUIDs for sessions, blocks, items, and set logs; exercise IDs remain catalog IDs. Avoid whole-database last-write-wins: merge independent set logs by ID and show a conflict when the same set or settings field changed on two devices. Tombstones are needed for deletions. Version every serialized record and write migrations before sending newer rows.
 
 The future adapter can keep the existing UI calls (`saveSession`, `listSessions`, etc.) unchanged and add explicit sync status methods only when cross-device sync is in scope. No Supabase client, schema, or credentials ship in this repository today.

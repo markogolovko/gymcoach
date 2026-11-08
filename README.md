@@ -1,6 +1,6 @@
 # FORM · AI Gym Coach
 
-A static, mobile-first workout planner and training log. It builds plans from an exercise catalog, your available equipment, capabilities, and a compact summary of completed sessions. Workouts keep working offline after they have been generated.
+A mobile-first AI workout planner and training log. It builds plans from an exercise catalog, your available equipment, capabilities, and a compact summary of completed sessions. Generating and refining workouts requires an internet connection and calls the OpenAI API.
 
 ## Run locally
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open the local Vite URL on your phone or computer. Add your OpenAI API key in **Settings** to generate a workout. The key is stored in this browser’s IndexedDB and sent directly to `api.openai.com` only when you request a plan. Anyone with access to the browser profile can use the key. A backup excludes it unless you opt in.
+Open the local Vite URL on your phone or computer. Add your OpenAI API key in **Settings** to generate a workout. The key is stored in this browser’s IndexedDB and sent directly to `api.openai.com` only when you request a plan. Anyone with access to the browser profile can use the key.
 
 `.env.local` is Git-ignored and can hold a local reference, but this static app does not load environment secrets into browser code. Enter the key in Settings to use it; production builds do not include `.env.local` values.
 
@@ -44,17 +44,15 @@ Create a Pages project connected to the repository. Set the build command to `np
 1. Open the deployed HTTPS site in Safari.
 2. Tap **Share**, then **Add to Home Screen**.
 3. Open FORM from the new Home Screen icon. Safari and the installed app have separate browser storage, so data created in one will not appear in the other.
-4. In Settings, check the storage protection status and export a JSON backup regularly. iOS may clear site data when storage is not persistent.
+4. In Settings, check the storage protection status. iOS may clear site data when storage is not persistent.
 
 The Runner saves each set and timer end time locally. Rest timers recalculate from timestamps after the app resumes; the Wake Lock API is used where the browser supports it.
 
-## Data and recovery
+## Data storage
 
-All app state is stored through the asynchronous `Storage` interface. `LocalAdapter` is the only current implementation and stores settings, capabilities, weight entries, sessions, and metadata in IndexedDB. The database is versioned; schema changes belong in a migration branch in `src/storage/local.ts`.
+The current app stores settings, capabilities, weight entries, and workout sessions in IndexedDB through the `Storage` interface. The database is versioned; schema changes belong in a migration branch in `src/storage/local.ts`. Supabase persistence is planned for a future iteration.
 
-Use **Settings → Export all data (JSON)** for a backup. iOS uses the share sheet when it supports file sharing; other browsers download the file. Import validates the backup version and shape before replacing app data. An omitted API key is preserved from the current browser when restoring; if restoring on a new device, enter the key again.
-
-The API key is a browser-side secret. Anyone who can access this browser profile can use it. Do not include the key in a backup you plan to share.
+The API key is stored in this browser and sent directly to OpenAI only when you generate or refine a workout. Anyone who can access this browser profile can use it.
 
 ## Project notes
 
