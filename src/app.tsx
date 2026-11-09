@@ -284,11 +284,12 @@ export function App() {
             setSettings(nextSettings); setSettingsDraft(nextSettings)
           }
           const refineTarget = refineId ? sessionsRef.current.find(session => session.id === refineId) : undefined
-          const result = await generateWorkout({ ...input, ...(refineTarget ? { refineWorkout: refineTarget.workout } : {}) }, { ...nextSettings, model: 'gpt-5.4-mini', language: 'en' }, capabilities, sessions)
+          const priorDay = input.rotationDay ? sessionsRef.current.filter(item => item.status === 'completed' && item.generationRequest?.rotationDay === input.rotationDay).sort((a, b) => performedAt(b).localeCompare(performedAt(a)))[0] : undefined
+          const result = await generateWorkout({ ...input, ...(!refineTarget && priorDay ? { refineWorkout: priorDay.workout } : {}), ...(refineTarget ? { refineWorkout: refineTarget.workout } : {}) }, { ...nextSettings, model: 'gpt-5.4-mini', language: 'en' }, capabilities, sessions)
           const session: WorkoutSession = refineTarget
-            ? { ...refineTarget, workout: result.workout, usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
+            ? { ...refineTarget, workout: result.workout, usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel, ...(input.rotationDay ? { rotationDay: input.rotationDay } : {}) } }
             : { id: newId(), status: 'planned', createdAt: new Date().toISOString(), finishedAt: null, timerEndsAt: null, holdTimer: null,
-              workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel } }
+              workout: result.workout, rpe: null, note: '', usage: result.usage, generationRequest: { duration: input.duration, focus: input.focus, feel: input.feel, ...(input.rotationDay ? { rotationDay: input.rotationDay } : {}) } }
           const preparedSession = fillStarterLoads(session, nextSettings.profile.weightKg, capabilities, sessionsRef.current)
           await storage.saveSession(preparedSession)
           const next = refineTarget ? sessionsRef.current.map(item => item.id === preparedSession.id ? preparedSession : item) : [preparedSession, ...sessionsRef.current]
@@ -329,6 +330,7 @@ function HomeScreen({ sessions, currentSession, onGenerate, onContinue, onOpenWe
 
 function GenerateScreen({ settings, capabilities, sessions, refineSession, onPlan }: { settings: AppSettings; capabilities: Capability[]; sessions: WorkoutSession[]; refineSession: WorkoutSession | null; onPlan: (input: GenerateInput, apiKey: string, refineId: string | null) => Promise<{ ok: true; usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } } | { ok: false; kind: string; message: string }> }) {
   const [duration, setDuration] = useState(60)
+  const [rotationDay, setRotationDay] = useState(refineSession?.generationRequest?.rotationDay ?? 1)
   const [focus, setFocus] = useState('')
   const [feel, setFeel] = useState('')
   const [equipment, setEquipment] = useState(settings.equipment)
@@ -338,20 +340,22 @@ function GenerateScreen({ settings, capabilities, sessions, refineSession, onPla
   const [apiKey, setApiKey] = useState(settings.apiKey)
   const [showKey, setShowKey] = useState(false)
   const [usage, setUsage] = useState<{ promptTokens: number; completionTokens: number } | null>(null)
-  const estimatedTokens = useMemo(() => estimateTokens(makePromptPayload({ duration, focus, feel, equipment, ...(refineSession ? { refineWorkout: refineSession.workout } : {}) }, settings, capabilities, sessions).payload), [duration, focus, feel, equipment, settings, capabilities, sessions, refineSession])
+  const priorDay = sessions.filter(item => item.status === 'completed' && item.generationRequest?.rotationDay === rotationDay).sort((a, b) => performedAt(b).localeCompare(performedAt(a)))[0]
+  const estimatedTokens = useMemo(() => estimateTokens(makePromptPayload({ duration, focus, feel, equipment, rotationDay, ...(refineSession ? { refineWorkout: refineSession.workout } : priorDay ? { refineWorkout: priorDay.workout } : {}) }, settings, capabilities, sessions).payload), [duration, focus, feel, equipment, rotationDay, settings, capabilities, sessions, refineSession, priorDay])
 
   const changePreset = (value: string) => { setPreset(value); if (presets[value]) setEquipment(presets[value]) }
   const submit = async (event: Event) => {
     event.preventDefault(); setError(''); setUsage(null)
     if (!apiKey.trim()) { setError('key'); return }
     setPending(true)
-    const result = await onPlan({ duration, focus, feel, equipment }, apiKey.trim(), refineSession?.id ?? null)
+    const result = await onPlan({ duration, focus, feel, equipment, rotationDay }, apiKey.trim(), refineSession?.id ?? null)
     setPending(false)
     if (result.ok) setUsage(result.usage)
     else setError(result.kind === 'invalid' || result.kind === 'generic' ? result.message : result.kind)
   }
   return <section class="builder-screen"><header class="section-intro"><p class="eyebrow">{t('generator.eyebrow')}</p><h1>{t('generator.title')}</h1><p>{t('generator.description')}</p></header>
     <form class="builder-card" onSubmit={submit}>
+      {!refineSession && <fieldset class="rotation-picker"><legend>{t('generator.rotationTitle')}</legend><p class="field-hint">{t('generator.rotationHelp')}</p><div>{[1, 2, 3].map(day => <button type="button" class={rotationDay === day ? 'selected' : ''} aria-pressed={rotationDay === day} onClick={() => setRotationDay(day)}>{t(`generator.rotationDay${day}` as TranslationKey)}{sessions.some(item => item.status === 'completed' && item.generationRequest?.rotationDay === day) && <small>{t('generator.rotationRepeat')}</small>}</button>)}</div></fieldset>}
       <div class="form-group"><div class="label-row"><label for="duration">{t('generator.duration')}</label><output class="duration-value">{formatNumber(duration)} <small>{t('app.minutes')}</small></output></div><input id="duration" type="range" min="20" max="180" step="5" value={duration} onInput={event => setDuration(Number((event.currentTarget as HTMLInputElement).value))} /><div class="range-labels"><span>{formatNumber(20)} {t('app.minutes')}</span><span>{formatNumber(180)} {t('app.minutes')}</span></div><p class="field-hint">{t('generator.durationHelp')}</p></div>
       <div class="form-row"><label class="form-group"><span>{t(refineSession ? 'generator.refineFocus' : 'generator.focus')}</span><input class="text-input" value={focus} maxlength={120} placeholder={t(refineSession ? 'generator.refineFocusPlaceholder' : 'generator.focusPlaceholder')} onInput={event => setFocus((event.currentTarget as HTMLInputElement).value)} /></label><label class="form-group"><span>{t('generator.feel')}</span><input class="text-input" value={feel} maxlength={160} placeholder={t('generator.feelPlaceholder')} onInput={event => setFeel((event.currentTarget as HTMLInputElement).value)} /></label></div>
       <div class="form-group"><label for="gen-preset">{t('settings.preset')}</label><select class="text-input" id="gen-preset" value={preset} onChange={event => changePreset((event.currentTarget as HTMLSelectElement).value)}><option value="park">{t('generator.presetPark')}</option><option value="gym">{t('generator.presetGym')}</option><option value="home">{t('generator.presetHome')}</option><option value="custom">{t('generator.presetCustom')}</option></select></div>
@@ -387,6 +391,9 @@ function RunnerScreen({ session, settings, onFinish, mutate, onApplyUpdates, onR
   const [now, setNow] = useState(Date.now())
   const [finishing, setFinishing] = useState(false)
   const [swapping, setSwapping] = useState<string | null>(null)
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false)
+  const [addExerciseQuery, setAddExerciseQuery] = useState('')
+  const [customExerciseName, setCustomExerciseName] = useState('')
   const [exerciseDetail, setExerciseDetail] = useState<{ id: string; name: string; note: string | null } | null>(null)
   const planScrollY = useRef(0)
   const lockRef = useRef<{ release: () => Promise<void> } | null>(null)
@@ -405,6 +412,7 @@ function RunnerScreen({ session, settings, onFinish, mutate, onApplyUpdates, onR
     void audioContextRef.current.resume().catch(() => undefined)
   }
   const notifyTimer = (tag: string) => {
+    if (document.visibilityState === 'visible') return
     if (!('Notification' in window) || Notification.permission !== 'granted') return
     const options = { body: t('runner.timerDone'), tag, requireInteraction: true }
     if (navigator.serviceWorker) void navigator.serviceWorker.ready.then(registration => registration.showNotification('FORM', options)).catch(() => undefined)
@@ -475,6 +483,24 @@ function RunnerScreen({ session, settings, onFinish, mutate, onApplyUpdates, onR
   const elapsed = activityMinutes(session)
   const byId = (blockIndex: number, itemIndex: number, transform: (item: WorkoutItem) => WorkoutItem, timer?: number | null) => {
     mutate(current => ({ ...current, workout: { ...current.workout, blocks: current.workout.blocks.map((block, bi) => bi !== blockIndex ? block : ({ ...block, items: block.items.map((item, ii) => ii === itemIndex ? transform(item) : item) })) }, ...(timer === undefined ? {} : { timerEndsAt: timer }) }), session.id)
+  }
+  const addExercise = (id: string, customName?: string) => {
+    const exercise = exerciseById.get(id)
+    if (id !== 'custom' && !exercise) return
+    const timeBased = exercise?.type === 'time'
+    const load = exercise?.loadable ? starterLoadKg(id, settings.profile.weightKg) : null
+    const target = timeBased ? 30 : 10
+    const item: WorkoutItem = { ex: id, name: id === 'custom' ? customName?.trim() || null : null, sets: 3, tgt: target, u: timeBased ? 's' : 'r', load, rest: 90, note: null, log: Array.from({ length: 3 }, () => ({ done: false, reps: target, loadKg: load, completedAt: null })), skipped: false }
+    mutate(current => {
+      const blocks = [...current.workout.blocks]
+      const mainIndex = blocks.findIndex(block => block.t === 'main')
+      if (mainIndex >= 0) blocks[mainIndex] = { ...blocks[mainIndex], items: [...blocks[mainIndex].items, item] }
+      else blocks.push({ t: 'main', items: [item] })
+      return { ...current, workout: { ...current.workout, blocks } }
+    }, session.id)
+    setAddExerciseOpen(false)
+    setAddExerciseQuery('')
+    setCustomExerciseName('')
   }
   const adjustSet = (blockIndex: number, itemIndex: number, setIndex: number, patch: { reps?: number; loadKg?: number | null }) => byId(blockIndex, itemIndex, item => ({ ...item, log: item.log.map((set, index) => index === setIndex ? { ...set, ...patch } : set) }))
   const startHoldTimer = (blockIndex: number, itemIndex: number, setIndex: number) => {
@@ -567,11 +593,12 @@ function RunnerScreen({ session, settings, onFinish, mutate, onApplyUpdates, onR
   if (session.status === 'completed') return <section class="finish-summary-screen"><div class="success-emblem"><Icon name="check" /></div><p class="eyebrow">{t('runner.finishTitle')}</p><h1>{session.workout.title}</h1><p class="summary-lede">{t('runner.finishBody')}</p><div class="finish-stats"><div><strong>{completionRate(session)}%</strong><span>{t('runner.completion')}</span></div><div><strong>{elapsed} <small>{t('app.minutes')}</small></strong><span>{t('runner.activityTime')}</span></div><div><strong>{session.rpe ?? '—'}/10</strong><span>{t('history.rpe')}</span></div></div>{session.note && <blockquote class="finish-note">“{session.note}”</blockquote>}<button class="button button-secondary full-width" onClick={onHome}>{t('app.today')}<Icon name="arrow" /></button></section>
 
   return <section class="runner-screen">
-    <header class="runner-head"><div><p class="eyebrow">{session.status === 'active' ? t('runner.eyebrow') : t('history.planned')}</p><h1>{session.workout.title}</h1></div><div class="runner-head-time"><strong>{elapsed}</strong><span>{t('runner.activityTime')}</span></div></header>
+    <header class="runner-head"><div><p class="eyebrow">{session.generationRequest?.rotationDay ? t(`generator.rotationDay${session.generationRequest.rotationDay}` as TranslationKey) : session.status === 'active' ? t('runner.eyebrow') : t('history.planned')}</p><h1>{session.workout.title}</h1></div><div class="runner-head-time"><strong>{elapsed}</strong><span>{t('runner.activityTime')}</span></div></header>
     <div class="runner-progress"><div class="progress-label"><span>{t('runner.progress')}</span><strong>{formatNumber(progress)}%</strong></div><div class="progress-track"><i style={{ width: `${progress}%` }} /></div><div class="progress-meta"><span>{formatNumber(done)}/{formatNumber(planned)} {t('runner.setsDone')}</span><span>{t('runner.activityTime')} · {formatNumber(elapsed)} {t('app.minutes')}</span></div></div>
     {hasWeightedExercises && <p class="load-guidance">{t('runner.loadGuidance')}</p>}
     <div class="coach-card"><span class="coach-star"><Icon name="spark" /></span><div><p>{t('runner.coachNote')}</p><strong>{session.workout.coach}</strong></div></div>
     {session.status === 'planned' && <button class="text-button refine-workout-button" onClick={() => onRefine(session.id)}><Icon name="spark" />{t('generator.refineButton')}</button>}
+    <div class="add-exercise-control"><button class="button button-secondary" onClick={() => setAddExerciseOpen(value => !value)}><Icon name="plus" />{t('runner.addExercise')}</button>{addExerciseOpen && <div class="add-exercise-panel"><label class="visually-hidden" for="add-exercise-search">{t('runner.addExercise')}</label><input id="add-exercise-search" class="text-input swap-search" type="search" value={addExerciseQuery} placeholder={t('runner.addExerciseSearch')} onInput={event => setAddExerciseQuery((event.currentTarget as HTMLInputElement).value)} /><div class="swap-results">{[...exerciseById.values()].filter(exercise => exercise.equipment.every(tag => tag === 'bodyweight' || settings.equipment.includes(tag))).filter(exercise => !addExerciseQuery.trim() || `${nameFor(exercise.id)} ${exercise.muscles.join(' ')}`.toLowerCase().includes(addExerciseQuery.trim().toLowerCase())).slice(0, 30).map(exercise => <button class="swap-choice" key={exercise.id} onClick={() => addExercise(exercise.id)}>{nameFor(exercise.id)}<Icon name="plus" /></button>)}</div><label class="form-group custom-exercise-entry"><span>{t('runner.customExercise')}</span><div class="input-with-action"><input class="text-input" value={customExerciseName} maxlength={48} onInput={event => setCustomExerciseName((event.currentTarget as HTMLInputElement).value)} /><button class="show-key" type="button" disabled={!customExerciseName.trim()} onClick={() => addExercise('custom', customExerciseName)}>{t('app.add')}</button></div></label></div>}</div>
     {session.usage && <p class="actual-usage">{t('generator.usage', { prompt: session.usage.promptTokens, completion: session.usage.completionTokens })}</p>}
       <div class="workout-blocks">{session.workout.blocks.map((block, bi) => <section class="workout-block" key={`${session.id}-${bi}`}><header class="block-heading"><span class="block-index">{String(bi + 1).padStart(2, '0')}</span><h2>{t(`blocks.${block.t}` as TranslationKey)}</h2></header>
       {block.items.map((item, ii) => {

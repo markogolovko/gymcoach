@@ -131,6 +131,13 @@ input[type="range"] { width: 100%; height: 28px; margin: 9px 0 0; accent-color: 
 .field-hint { margin-top: 6px; }
 .equipment-grid { display: flex; flex-wrap: wrap; gap: 9px; margin: 3px 0 24px; border: 0; padding: 0; }
 .equipment-grid legend { width: 100%; margin-bottom: 12px; color: var(--muted-light); font-size: 12px; font-weight: 700; }
+.rotation-picker { display: grid; gap: 8px; margin: 0 0 25px; border: 1px solid #343a30; border-radius: 14px; padding: 14px; background: #141712; }
+.rotation-picker legend { padding: 0 5px; color: var(--muted-light); font-size: 12px; font-weight: 700; }
+.rotation-picker > .field-hint { margin: 0; }
+.rotation-picker > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rotation-picker button { display: grid; min-height: 54px; align-content: center; gap: 4px; border: 1px solid #343930; border-radius: 10px; padding: 7px; background: #1a1e18; color: var(--muted-light); font-size: 11px; cursor: pointer; }
+.rotation-picker button.selected { border-color: var(--acid); background: #252d1d; color: #f1f4eb; }
+.rotation-picker button small { color: var(--acid); font-size: 9px; }
 .check-chip { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; border: 1px solid #343930; border-radius: 99px; padding: 0 12px 0 8px; background: #141712; color: var(--muted-light); font-size: 11px; font-weight: 550; cursor: pointer; transition: border .15s, background .15s; }
 .check-chip:has(input:checked) { border-color: #627849; background: #20291a; color: #ecf2e1; }
 .check-chip input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -231,6 +238,12 @@ input[type="range"] { width: 100%; height: 28px; margin: 9px 0 0; accent-color: 
 .swap-panel p { margin: 0 0 3px; color: var(--muted); font-size: 10px; }
 .swap-search { min-height: 42px; margin: 2px 0; }
 .swap-results { display: grid; max-height: 260px; gap: 7px; overflow-y: auto; overscroll-behavior: contain; }
+.add-exercise-control { margin: 0 0 18px; }
+.add-exercise-control > .button { min-height: 42px; }
+.add-exercise-control > .button svg { width: 17px; }
+.add-exercise-panel { display: grid; gap: 9px; margin-top: 10px; border: 1px solid var(--border); border-radius: 13px; padding: 12px; background: #151812; }
+.custom-exercise-entry { margin: 6px 0 0; }
+.custom-exercise-entry .show-key { min-width: 76px; }
 .swap-empty { padding: 8px 0; }
 .swap-choice { display: flex; min-height: 42px; align-items: center; justify-content: space-between; border: 1px solid #343b30; border-radius: 10px; padding: 0 12px; background: #20251d; color: #e5eadc; font-size: 12px; cursor: pointer; }
 .swap-choice svg { width: 15px; height: 15px; color: var(--acid); }
@@ -478,6 +491,7 @@ input[type="range"] { width: 100%; height: 28px; margin: 9px 0 0; accent-color: 
   .form-row { grid-template-columns: 1fr; gap: 0; }
   .form-row .form-group { margin-bottom: 16px; }
   .equipment-grid { gap: 7px; }
+  .rotation-picker > div { grid-template-columns: 1fr; }
   .check-chip { min-height: 37px; padding-right: 10px; font-size: 10px; }
   .token-estimate { align-items: flex-start; flex-direction: column; gap: 7px; }
   .privacy-line { text-align: left; }

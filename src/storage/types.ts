@@ -77,7 +77,7 @@ export interface WorkoutSession {
   rpe: number | null
   note: string
   usage: { estimatedTokens: number; promptTokens: number; completionTokens: number } | null
-  generationRequest: { duration: number; focus: string; feel: string } | null
+  generationRequest: { duration: number; focus: string; feel: string; rotationDay?: number } | null
 }
 export interface Storage {
   getSettings(): Promise<AppSettings>
