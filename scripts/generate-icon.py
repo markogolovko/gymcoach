@@ -11,6 +11,20 @@ ink = (22, 26, 16, 255)
 pixels = bytearray(large * large * 4)
 radius = 112
 
+def inside_polygon(x, y, points):
+    inside = False
+    previous = points[-1]
+    for current in points:
+        x1, y1 = previous
+        x2, y2 = current
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+            inside = not inside
+        previous = current
+    return inside
+
+outer = [(46, 32), (93, 32), (114, 37), (127, 49), (133, 67), (131, 83), (122, 95), (106, 103), (139, 148), (100, 148), (76, 110), (79, 110), (79, 148), (46, 148)]
+counter = [(79, 60), (90, 60), (98, 63), (102, 70), (98, 77), (90, 79), (79, 79)]
+
 for y in range(large):
     for x in range(large):
         dx = min(x, large - 1 - x)
@@ -23,7 +37,7 @@ for y in range(large):
         if not inside:
             continue
         px, py = x / scale, y / scale
-        is_mark = (54 <= px < 126 and 48 <= py < 76) or (54 <= px < 80 and 48 <= py < 143) or (54 <= px < 116 and 88 <= py < 113)
+        is_mark = inside_polygon(px, py, outer) and not inside_polygon(px, py, counter)
         color = ink if is_mark else acid
         offset = (y * large + x) * 4
         pixels[offset:offset + 4] = bytes(color)

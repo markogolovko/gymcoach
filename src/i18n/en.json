@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "FORM",
+    "name": "Repwise",
     "navigation": "Main navigation",
     "subtitle": "Your training, thoughtfully planned.",
     "today": "Today",
@@ -56,7 +56,7 @@
     "viewWorkouts": "Tap to view this week’s workouts",
     "openWeekHistory": "Open this week’s workouts",
     "consistency": "Consistency over intensity",
-    "quoteMark": "FORM / 01"
+    "quoteMark": "REPWISE / 01"
   },
   "generator": {
     "eyebrow": "SESSION BUILDER",
@@ -260,10 +260,10 @@
   },
   "install": {
     "title": "Keep your training close",
-    "body": "Safari may remove website data after a period of inactivity. Add FORM to your Home Screen to keep its storage separate from Safari and easier to return to.",
+    "body": "Safari may remove website data after a period of inactivity. Add Repwise to your Home Screen to keep its storage separate from Safari and easier to return to.",
     "step1": "Tap the Share button in Safari.",
     "step2": "Choose “Add to Home Screen”.",
-    "step3": "Open FORM from its new Home Screen icon. Safari and the installed app keep separate data.",
+    "step3": "Open Repwise from its new Home Screen icon. Safari and the installed app keep separate data.",
     "dismiss": "I understand",
     "later": "Later"
   },

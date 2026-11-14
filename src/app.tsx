@@ -266,7 +266,7 @@ export function App() {
 
   return <div class="app-shell">
     <header class="topbar">
-      <button class="brand" aria-label={t('app.name')} onClick={() => navigate('home')}><span class="brand-mark">F</span><span>FORM</span></button>
+      <button class="brand" aria-label={t('app.name')} onClick={() => navigate('home')}><span class="brand-mark">R</span><span>REPWISE</span></button>
     </header>
 
     {storageError && <div class="global-alert" role="alert"><span>{storageError}</span><button aria-label={t('app.close')} onClick={() => setStorageError('')}><Icon name="close" /></button></div>}
@@ -415,8 +415,8 @@ function RunnerScreen({ session, settings, onFinish, mutate, onApplyUpdates, onR
     if (document.visibilityState === 'visible') return
     if (!('Notification' in window) || Notification.permission !== 'granted') return
     const options = { body: t('runner.timerDone'), tag, requireInteraction: true }
-    if (navigator.serviceWorker) void navigator.serviceWorker.ready.then(registration => registration.showNotification('FORM', options)).catch(() => undefined)
-    else new Notification('FORM', options)
+    if (navigator.serviceWorker) void navigator.serviceWorker.ready.then(registration => registration.showNotification('Repwise', options)).catch(() => undefined)
+    else new Notification('Repwise', options)
   }
   const playSignal = () => {
     primeAudio()
@@ -753,6 +753,6 @@ function SettingsScreen({ settings, setDraft, capabilities, persistState, storag
         <div class="storage-usage"><span>{t('settings.storageUsed', { used: byteSize(storageEstimate.usage), quota: byteSize(storageEstimate.quota) })}</span><div class="usage-track"><i style={{ width: `${storageEstimate.usage && storageEstimate.quota ? Math.min(100, storageEstimate.usage / storageEstimate.quota * 100) : 0}%` }} /></div></div>
       </section>
     </div>
-    <p class="app-version">FORM {__APP_VERSION__} · {__APP_BUILD_TIME__.slice(0, 19).replace('T', ' ')} UTC</p>
+    <p class="app-version">Repwise {__APP_VERSION__} · {__APP_BUILD_TIME__.slice(0, 19).replace('T', ' ')} UTC</p>
   </section>
 }

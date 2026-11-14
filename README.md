@@ -1,4 +1,4 @@
-# FORM · AI Gym Coach
+# Repwise · AI Gym Coach
 
 A mobile-first AI workout planner and training log. It builds plans from an exercise catalog, your available equipment, capabilities, and a compact summary of completed sessions. Generating and refining workouts requires an internet connection and calls the OpenAI API.
 
@@ -43,7 +43,7 @@ Create a Pages project connected to the repository. Set the build command to `np
 
 1. Open the deployed HTTPS site in Safari.
 2. Tap **Share**, then **Add to Home Screen**.
-3. Open FORM from the new Home Screen icon. Safari and the installed app have separate browser storage, so data created in one will not appear in the other.
+3. Open Repwise from the new Home Screen icon. Safari and the installed app have separate browser storage, so data created in one will not appear in the other.
 4. In Settings, check the storage protection status. iOS may clear site data when storage is not persistent.
 
 The Runner saves each set and timer end time locally. Rest timers recalculate from timestamps after the app resumes; the Wake Lock API is used where the browser supports it.

@@ -17,7 +17,7 @@ export default defineConfig({
     registerType: 'autoUpdate',
     includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
     manifest: {
-      name: 'FORM · AI Gym Coach', short_name: 'FORM', description: 'A thoughtful training plan that fits your day.',
+      name: 'Repwise · AI Gym Coach', short_name: 'Repwise', description: 'A thoughtful training plan that fits your day.',
       theme_color: '#111210', background_color: '#111210', display: 'standalone', orientation: 'portrait',
       start_url: './', scope: './',
       icons: [{ src: './icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
